@@ -18,9 +18,6 @@ export const metadata: Metadata = {
     "Pick 5 NFL players. Chase 21 non-passing touchdowns across the 2026 season. Don't bust.",
 };
 
-// TODO(session-5): move to env / config alongside the real charity page.
-const JUST_GIVING_URL = undefined;
-
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -55,7 +52,7 @@ export default function RootLayout({
           }
         />
         <main className="flex-1">{children}</main>
-        <Footer justGivingUrl={JUST_GIVING_URL} />
+        <Footer justGivingUrl={process.env.JUSTGIVING_URL} />
       </body>
     </html>
   );

@@ -6,7 +6,7 @@
  */
 import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "./client";
-import { entrants, leaderboard, picks, players, playerWeekStats } from "./schema";
+import { entrants, feedback, leaderboard, picks, players, playerWeekStats } from "./schema";
 
 export interface ScoreboardRow {
   entrantId: string;
@@ -262,6 +262,50 @@ export async function getAdminStats(): Promise<AdminStats> {
     })
     .from(entrants);
   return { entrantCount: Number(row.entrantCount), submittedCount: Number(row.submittedCount) };
+}
+
+export type FeedbackStatus = "new" | "triaged" | "done";
+
+export interface NewFeedback {
+  entrantId?: string | null;
+  email?: string | null;
+  message: string;
+  context?: string | null;
+}
+
+export async function insertFeedback(input: NewFeedback): Promise<void> {
+  await db()
+    .insert(feedback)
+    .values({ id: crypto.randomUUID(), status: "new", ...input });
+}
+
+export interface FeedbackRow {
+  id: string;
+  email: string | null;
+  message: string;
+  context: string | null;
+  status: FeedbackStatus;
+  createdAt: Date;
+}
+
+/** All feedback, newest first — admin-only aggregation view. */
+export async function listFeedback(): Promise<FeedbackRow[]> {
+  const rows = await db()
+    .select({
+      id: feedback.id,
+      email: feedback.email,
+      message: feedback.message,
+      context: feedback.context,
+      status: feedback.status,
+      createdAt: feedback.createdAt,
+    })
+    .from(feedback)
+    .orderBy(desc(feedback.createdAt));
+  return rows as FeedbackRow[];
+}
+
+export async function setFeedbackStatus(id: string, status: FeedbackStatus): Promise<void> {
+  await db().update(feedback).set({ status }).where(eq(feedback.id, id));
 }
 
 async function seasonTotalsByPlayer(): Promise<Map<string, number>> {

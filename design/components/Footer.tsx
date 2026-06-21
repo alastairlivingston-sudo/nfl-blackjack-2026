@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Container } from "./Container";
 
 /**
@@ -22,6 +23,14 @@ export function Footer({ justGivingUrl }: { justGivingUrl?: string }) {
             Donate on JustGiving →
           </a>
         ) : null}
+        <div className="flex items-center gap-4">
+          <Link href="/feedback" className="hover:text-foreground">
+            Feedback
+          </Link>
+          <Link href="/privacy" className="hover:text-foreground">
+            Privacy
+          </Link>
+        </div>
       </Container>
     </footer>
   );
