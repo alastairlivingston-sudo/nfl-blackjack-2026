@@ -3,7 +3,7 @@
  * scripts/compute-leaderboard.ts) and the Vercel Cron route handler
  * (app/api/cron/refresh-stats/route.ts) — one implementation, two callers.
  */
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { entrants, picks, playerWeekStats, leaderboard } from "../db/schema";
 import { fetchWeekStats } from "../sleeper";
@@ -43,7 +43,7 @@ export async function ingestSeason(season: number, weeks: number[] = range(1, 18
   }
 }
 
-export async function computeLeaderboard(): Promise<number> {
+export async function computeLeaderboard(season: number): Promise<number> {
   const conn = db();
 
   const totalsRows = await conn
@@ -52,6 +52,7 @@ export async function computeLeaderboard(): Promise<number> {
       total: sql<number>`sum(${playerWeekStats.rushTd} + ${playerWeekStats.recTd})`,
     })
     .from(playerWeekStats)
+    .where(eq(playerWeekStats.season, season))
     .groupBy(playerWeekStats.playerId);
   const totalsByPlayer = new Map(totalsRows.map((r) => [r.playerId, Number(r.total)]));
 

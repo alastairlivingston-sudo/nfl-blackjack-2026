@@ -4,9 +4,10 @@
  * table — never raw picks/stats — so it stays cheap under concurrent load
  * (see PLAN.md "Scalability for ~1,000 users").
  */
-import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "./client";
 import { entrants, feedback, leaderboard, picks, players, playerWeekStats } from "./schema";
+import { currentSeason } from "../season";
 
 export interface ScoreboardRow {
   entrantId: string;
@@ -106,7 +107,7 @@ export async function getPlayer(playerId: string): Promise<PlayerDetail | null> 
       recTd: playerWeekStats.recTd,
     })
     .from(playerWeekStats)
-    .where(eq(playerWeekStats.playerId, playerId))
+    .where(and(eq(playerWeekStats.playerId, playerId), eq(playerWeekStats.season, currentSeason())))
     .orderBy(asc(playerWeekStats.week));
 
   const seasonTotal = weekRows.reduce((sum, w) => sum + w.rushTd + w.recTd, 0);
@@ -147,6 +148,21 @@ export async function getTeamPlayers(team: string): Promise<TeamPlayer[]> {
   return rows
     .map((r) => ({ ...r, seasonTotal: totals.get(r.id) ?? 0 }))
     .sort((a, b) => b.seasonTotal - a.seasonTotal);
+}
+
+export interface BarePlayer {
+  id: string;
+  fullName: string;
+  position: string;
+}
+
+/** Players on a team with no totals attached — used by the 21 Generator picker, which hides totals until reveal. */
+export async function getTeamPlayersBare(team: string): Promise<BarePlayer[]> {
+  return db()
+    .select({ id: players.id, fullName: players.fullName, position: players.position })
+    .from(players)
+    .where(eq(players.team, team))
+    .orderBy(asc(players.fullName));
 }
 
 /** Distinct teams that have at least one eligible player, alphabetical. */
@@ -213,10 +229,16 @@ export async function getEntrantPickIds(entrantId: string): Promise<string[]> {
 /** Looks up players by id, for validating a submitted lineup server-side. */
 export async function getPlayersByIds(
   ids: string[],
-): Promise<{ id: string; fullName: string; position: string; active: boolean }[]> {
+): Promise<{ id: string; fullName: string; team: string | null; position: string; active: boolean }[]> {
   if (ids.length === 0) return [];
   return db()
-    .select({ id: players.id, fullName: players.fullName, position: players.position, active: players.active })
+    .select({
+      id: players.id,
+      fullName: players.fullName,
+      team: players.team,
+      position: players.position,
+      active: players.active,
+    })
     .from(players)
     .where(inArray(players.id, ids));
 }
@@ -308,13 +330,26 @@ export async function setFeedbackStatus(id: string, status: FeedbackStatus): Pro
   await db().update(feedback).set({ status }).where(eq(feedback.id, id));
 }
 
-async function seasonTotalsByPlayer(): Promise<Map<string, number>> {
+/**
+ * Sums non-passing TDs per player for one season. Defaults to the live
+ * game's season (`currentSeason()`) — must stay season-scoped now that
+ * `playerWeekStats` also holds the 21 Generator's frozen 2025 totals
+ * (see lib/db/queries.ts#getFinalSeasonTotals), or the live scoreboard and
+ * player pages would double-count across seasons.
+ */
+async function seasonTotalsByPlayer(season: number = currentSeason()): Promise<Map<string, number>> {
   const rows = await db()
     .select({
       playerId: playerWeekStats.playerId,
       total: sql<number>`sum(${playerWeekStats.rushTd} + ${playerWeekStats.recTd})`,
     })
     .from(playerWeekStats)
+    .where(eq(playerWeekStats.season, season))
     .groupBy(playerWeekStats.playerId);
   return new Map(rows.map((r) => [r.playerId, Number(r.total)]));
+}
+
+/** Final, deterministic per-player non-passing TD totals for one completed season — used by the 21 Generator. */
+export async function getFinalSeasonTotals(season: number): Promise<Map<string, number>> {
+  return seasonTotalsByPlayer(season);
 }

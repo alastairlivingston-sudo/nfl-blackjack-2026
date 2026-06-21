@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { ingestSeason, computeLeaderboard } from "@/lib/jobs/refresh";
 import { setFeedbackStatus, type FeedbackStatus } from "@/lib/db/queries";
+import { currentSeason } from "@/lib/season";
 
 export interface RefreshState {
   error?: string;
@@ -25,9 +26,9 @@ export async function updateFeedbackStatus(id: string, status: FeedbackStatus): 
 export async function refreshNow(): Promise<RefreshState> {
   await requireAdmin();
 
-  const season = Number(process.env.NFL_SEASON ?? new Date().getFullYear());
+  const season = currentSeason();
   await ingestSeason(season);
-  const entrantCount = await computeLeaderboard();
+  const entrantCount = await computeLeaderboard(season);
 
   revalidatePath("/scoreboard");
   revalidatePath("/admin");

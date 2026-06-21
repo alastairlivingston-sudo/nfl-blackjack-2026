@@ -39,6 +39,12 @@ export default function RootLayout({
               >
                 Teams
               </Link>
+              <Link
+                href="/play"
+                className="text-sm font-medium text-violet-200 hover:text-white"
+              >
+                21 Generator
+              </Link>
               <Suspense
                 fallback={
                   <Link href="/login" className="text-sm font-medium text-violet-200 hover:text-white">
