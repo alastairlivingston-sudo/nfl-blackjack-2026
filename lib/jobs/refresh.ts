@@ -3,9 +3,9 @@
  * scripts/compute-leaderboard.ts) and the Vercel Cron route handler
  * (app/api/cron/refresh-stats/route.ts) — one implementation, two callers.
  */
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db/client";
-import { entrants, picks, playerWeekStats, leaderboard } from "../db/schema";
+import { entrants, picks, players, playerWeekStats, leaderboard } from "../db/schema";
 import { fetchWeekStats } from "../sleeper";
 import { scoreLineup, rankEntrants, type PlayerTotal } from "../scoring/score";
 
@@ -14,10 +14,27 @@ export async function ingestWeek(season: number, week: number): Promise<number> 
   const scoring = stats.filter((s) => s.rushTd > 0 || s.recTd > 0);
   if (scoring.length === 0) return 0;
 
+  /**
+   * Sleeper's stats payload includes team-level D/ST rows ("TEAM_BUF") and
+   * players outside our active QB/RB/WR/TE pool (retired, IR'd, never
+   * imported) — neither exists in `players`, so inserting them unfiltered
+   * trips the FK constraint and aborts the whole week's ingest.
+   */
+  const knownIds = new Set(
+    (
+      await db()
+        .select({ id: players.id })
+        .from(players)
+        .where(inArray(players.id, scoring.map((s) => s.playerId)))
+    ).map((r) => r.id),
+  );
+  const known = scoring.filter((s) => knownIds.has(s.playerId));
+  if (known.length === 0) return 0;
+
   await db()
     .insert(playerWeekStats)
     .values(
-      scoring.map((s) => ({
+      known.map((s) => ({
         playerId: s.playerId,
         season,
         week,
@@ -34,7 +51,7 @@ export async function ingestWeek(season: number, week: number): Promise<number> 
       },
     });
 
-  return scoring.length;
+  return known.length;
 }
 
 export async function ingestSeason(season: number, weeks: number[] = range(1, 18)): Promise<void> {
