@@ -36,7 +36,7 @@ fun single-player **"21 Generator"** practice mode using completed 2025 stats.
 - **Next.js (App Router) on Vercel.** Server Components for read paths, Route Handlers for mutations.
 - **Neon Postgres** via **`@neondatabase/serverless`** (HTTP) so serverless functions never exhaust connections.
 - **Resend** for transactional email (magic links + feedback digests).
-- **Vercel Cron** for stats refresh + leaderboard precompute (frequent on game days, idle otherwise).
+- **Vercel Cron** for stats refresh + leaderboard precompute. Staying on the **Hobby plan** (free) means cron is limited to **once per day**; Session 4 adds an admin "refresh now" button hitting the same route on demand for same-day freshness during game weeks.
 - **Tailwind v4 + design tokens**, Manrope, dark violet theme.
 
 ### Scalability for ~1,000 users
