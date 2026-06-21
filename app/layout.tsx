@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Manrope } from "next/font/google";
 import "./globals.css";
 import { Header, Footer } from "@/design";
+import { AuthNav } from "./AuthNav";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -40,6 +42,15 @@ export default function RootLayout({
               >
                 Teams
               </Link>
+              <Suspense
+                fallback={
+                  <Link href="/login" className="text-sm font-medium text-violet-200 hover:text-white">
+                    Sign in
+                  </Link>
+                }
+              >
+                <AuthNav />
+              </Suspense>
             </nav>
           }
         />

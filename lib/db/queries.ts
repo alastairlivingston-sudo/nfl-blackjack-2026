@@ -4,7 +4,7 @@
  * table — never raw picks/stats — so it stays cheap under concurrent load
  * (see PLAN.md "Scalability for ~1,000 users").
  */
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "./client";
 import { entrants, leaderboard, picks, players, playerWeekStats } from "./schema";
 
@@ -157,6 +157,111 @@ export async function listTeams(): Promise<string[]> {
     .where(sql`${players.team} is not null`)
     .orderBy(asc(players.team));
   return rows.map((r) => r.team!).filter(Boolean);
+}
+
+export interface Entrant {
+  id: string;
+  email: string;
+  displayName: string;
+  socialHandle: string | null;
+  tagConsent: boolean;
+  sleeperHandle: string | null;
+  submittedAt: Date | null;
+}
+
+export async function getEntrantByEmail(email: string): Promise<Entrant | null> {
+  const [row] = await db().select().from(entrants).where(eq(entrants.email, email));
+  return row ?? null;
+}
+
+export interface NewEntrantProfile {
+  email: string;
+  displayName: string;
+  socialHandle?: string | null;
+  tagConsent: boolean;
+  sleeperHandle?: string | null;
+}
+
+/** Creates the entrant row on first profile save, or updates it on later edits (pre-lock only). */
+export async function upsertEntrantProfile(profile: NewEntrantProfile): Promise<Entrant> {
+  const [row] = await db()
+    .insert(entrants)
+    .values({ id: crypto.randomUUID(), ...profile })
+    .onConflictDoUpdate({
+      target: entrants.email,
+      set: {
+        displayName: profile.displayName,
+        socialHandle: profile.socialHandle ?? null,
+        tagConsent: profile.tagConsent,
+        sleeperHandle: profile.sleeperHandle ?? null,
+      },
+    })
+    .returning();
+  return row;
+}
+
+/** Raw picks (player_id + slot only) for prefilling the entry form — no TD totals needed. */
+export async function getEntrantPickIds(entrantId: string): Promise<string[]> {
+  const rows = await db()
+    .select({ playerId: picks.playerId })
+    .from(picks)
+    .where(eq(picks.entrantId, entrantId))
+    .orderBy(asc(picks.slot));
+  return rows.map((r) => r.playerId);
+}
+
+/** Looks up players by id, for validating a submitted lineup server-side. */
+export async function getPlayersByIds(
+  ids: string[],
+): Promise<{ id: string; fullName: string; position: string; active: boolean }[]> {
+  if (ids.length === 0) return [];
+  return db()
+    .select({ id: players.id, fullName: players.fullName, position: players.position, active: players.active })
+    .from(players)
+    .where(inArray(players.id, ids));
+}
+
+/**
+ * Replaces an entrant's 5 picks atomically-ish (delete + insert; neon-http
+ * has no multi-statement transactions, but this route is single-writer per
+ * entrant so a clobbered intermediate state isn't a real risk). Sets
+ * `submittedAt` once, on first confirmation — edits before lock don't reset
+ * the tie-break clock (see PLAN.md "Win condition").
+ */
+export async function replacePicks(entrantId: string, playerIds: string[]): Promise<void> {
+  if (playerIds.length !== 5) {
+    throw new Error(`replacePicks expects exactly 5 player ids, got ${playerIds.length}`);
+  }
+  const conn = db();
+  await conn.delete(picks).where(eq(picks.entrantId, entrantId));
+  await conn.insert(picks).values(
+    playerIds.map((playerId, i) => ({
+      id: crypto.randomUUID(),
+      entrantId,
+      playerId,
+      slot: i + 1,
+    })),
+  );
+  await conn
+    .update(entrants)
+    .set({ submittedAt: sql`coalesce(${entrants.submittedAt}, now())` })
+    .where(eq(entrants.id, entrantId));
+}
+
+export interface AdminStats {
+  entrantCount: number;
+  submittedCount: number;
+}
+
+/** Counts for the admin dashboard — total profiles vs. confirmed lineups. */
+export async function getAdminStats(): Promise<AdminStats> {
+  const [row] = await db()
+    .select({
+      entrantCount: sql<number>`count(*)`,
+      submittedCount: sql<number>`count(${entrants.submittedAt})`,
+    })
+    .from(entrants);
+  return { entrantCount: Number(row.entrantCount), submittedCount: Number(row.submittedCount) };
 }
 
 async function seasonTotalsByPlayer(): Promise<Map<string, number>> {

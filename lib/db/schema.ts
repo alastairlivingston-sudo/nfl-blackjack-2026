@@ -86,6 +86,63 @@ export const leaderboard = pgTable("leaderboard", {
   computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Auth.js (NextAuth v5) tables, shaped to match @auth/drizzle-adapter's
+ * Postgres defaults exactly so `DrizzleAdapter(db, {...})` type-checks.
+ * Session strategy is JWT (see auth.ts) — `sessions` exists only because the
+ * adapter's type requires it; it's never written to. `accounts` is likewise
+ * unused (no OAuth providers, only magic-link email) but required by the
+ * adapter's schema type. The actual game account is `entrants`, keyed by
+ * the same email Auth.js verifies.
+ */
+export const users = pgTable("user", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name"),
+  email: text("email").unique(),
+  emailVerified: timestamp("emailVerified", { mode: "date" }),
+  image: text("image"),
+});
+
+export const accounts = pgTable(
+  "account",
+  {
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    provider: text("provider").notNull(),
+    providerAccountId: text("providerAccountId").notNull(),
+    refresh_token: text("refresh_token"),
+    access_token: text("access_token"),
+    expires_at: integer("expires_at"),
+    token_type: text("token_type"),
+    scope: text("scope"),
+    id_token: text("id_token"),
+    session_state: text("session_state"),
+  },
+  (t) => [primaryKey({ columns: [t.provider, t.providerAccountId] })],
+);
+
+export const sessions = pgTable("session", {
+  sessionToken: text("sessionToken").primaryKey(),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  expires: timestamp("expires", { mode: "date" }).notNull(),
+});
+
+export const verificationTokens = pgTable(
+  "verificationToken",
+  {
+    identifier: text("identifier").notNull(),
+    token: text("token").notNull(),
+    expires: timestamp("expires", { mode: "date" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.identifier, t.token] })],
+);
+
 export const feedback = pgTable("feedback", {
   id: text("id").primaryKey(), // cuid
   entrantId: text("entrant_id").references(() => entrants.id, { onDelete: "set null" }),
