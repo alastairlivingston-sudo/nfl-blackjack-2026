@@ -23,7 +23,6 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
-  outputFileTracingIncludes: { "/api/admin/migrate": ["./drizzle/**"] },
 };
 
 export default nextConfig;
