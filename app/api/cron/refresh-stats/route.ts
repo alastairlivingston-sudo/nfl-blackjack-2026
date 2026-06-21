@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ingestSeason, computeLeaderboard } from "@/lib/jobs/refresh";
+import { currentSeason } from "@/lib/season";
 
 export const maxDuration = 60;
 
@@ -19,9 +20,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const season = Number(process.env.NFL_SEASON ?? new Date().getFullYear());
+  const season = currentSeason();
   await ingestSeason(season);
-  const entrantCount = await computeLeaderboard();
+  const entrantCount = await computeLeaderboard(season);
 
   return NextResponse.json({ ok: true, season, entrantCount });
 }
