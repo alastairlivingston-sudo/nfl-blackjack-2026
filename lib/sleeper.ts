@@ -11,7 +11,13 @@ export interface WeekStats {
  * map of player_id -> stat object; we only ever need rush_td/rec_td.
  */
 export async function fetchWeekStats(season: number, week: number): Promise<WeekStats[]> {
-  const res = await fetch(`${SLEEPER_BASE}/stats/nfl/regular/${season}/${week}`);
+  // Without a timeout, a hung Sleeper request can run past the cron route's
+  // own maxDuration — the platform kills the function before our catch block
+  // (and its failure alert email) ever runs, so the scoreboard goes stale
+  // with nobody notified.
+  const res = await fetch(`${SLEEPER_BASE}/stats/nfl/regular/${season}/${week}`, {
+    signal: AbortSignal.timeout(10_000),
+  });
   if (!res.ok) {
     throw new Error(`Sleeper stats request failed for ${season} week ${week}: ${res.status}`);
   }

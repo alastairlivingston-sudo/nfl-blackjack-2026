@@ -64,6 +64,16 @@ export function PlayPicker({ slots }: { slots: TeamSlot[] }) {
     }, 450);
   }
 
+  function playAgain() {
+    setStep(0);
+    setStatus("pending");
+    setSpinLabel(SPIN_TEAMS[0]);
+    setPicks({});
+    setJustPicked(null);
+    setResult(null);
+    router.refresh();
+  }
+
   async function handleReveal() {
     setResult(null);
     setPending(true);
@@ -105,7 +115,7 @@ export function PlayPicker({ slots }: { slots: TeamSlot[] }) {
           <StatePill state={result.scored.state} />
         </div>
 
-        <Button className="mt-4" variant="secondary" onClick={() => router.refresh()}>
+        <Button className="mt-4" variant="secondary" onClick={playAgain}>
           Play again
         </Button>
       </Card>

@@ -7,6 +7,11 @@ import { Badge, Card, CardTitle, CardSubtitle, Container } from "@/design";
 import { RefreshButton } from "./RefreshButton";
 import { FeedbackStatusSelect } from "./FeedbackStatusSelect";
 
+// Matches the cron route's budget — the manual "refresh now" button calls the
+// same ingestSeason job, which without this falls back to Vercel's default
+// (much shorter) function timeout and can get killed mid-ingest with no alert.
+export const maxDuration = 60;
+
 export default async function AdminPage() {
   const session = await auth();
   if (!isAdminEmail(session?.user?.email)) redirect("/");
