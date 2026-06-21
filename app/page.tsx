@@ -34,9 +34,9 @@ export default function Home() {
           <Button size="lg" disabled>
             Enter (soon)
           </Button>
-          <Link href="/design">
+          <Link href="/scoreboard">
             <Button size="lg" variant="secondary">
-              View design system
+              View scoreboard
             </Button>
           </Link>
         </div>

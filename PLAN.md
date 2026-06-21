@@ -73,7 +73,7 @@ fun single-player **"21 Generator"** practice mode using completed 2025 stats.
 - **Session 0 — Design system.** ✅ Tokens, Tailwind preset, core components, `DESIGN.md`, `AGENTS.md`. *Accept:* styled gallery at `/design`.
 - **Session 1 — Scaffold + data layer.** ✅ Drizzle schema/migrations (`lib/db/`), Sleeper player import → `players.json` + seed SQL. **Live Neon DB connected, migrated, and seeded (948 players confirmed in `players` table).**
 - **Session 2 — Stats ingestion + scoring.** ✅ Scoring engine (`lib/scoring/score.ts`, 11 unit tests), Sleeper weekly TD ingestion (`lib/sleeper.ts`), shared job logic (`lib/jobs/refresh.ts`) called by both CLI scripts and the cron route (`app/api/cron/refresh-stats`), `vercel.json` schedule (daily, Hobby-plan compatible).
-- **Session 3 — Public scoreboard.** Cached, always-on leaderboard with pre-lock privacy; player/team detail pages.
+- **Session 3 — Public scoreboard.** ✅ `/scoreboard` reads the precomputed `leaderboard` table (ISR, `revalidate = 60`); pre-lock it only shows "Entered" status, post-lock (`lib/lock.ts`, `LOCK_AT` env) it reveals totals/state/rank and links to per-entrant lineups (`/entrants/[id]`). Player detail (`/players/[id]`: weekly TD log + season total + "picked by" once locked) and team pages (`/teams`, `/teams/[team]`).
 - **Session 4 — Auth + entries + admin.** Magic-link login, create/edit lineup with typeahead until lock, single-deadline lock, admin allowlist + controls.
 - **Session 5 — Feedback + polish + deploy.** Feedback form + email digest + admin view, rate limiting, privacy note, JustGiving CTA, Vercel deploy.
 - **Session 6 (nice-to-have) — 21 Generator 2025.** `/play` mode with random teams + hidden reveal.

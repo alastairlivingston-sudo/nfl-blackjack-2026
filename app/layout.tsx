@@ -27,12 +27,20 @@ export default function RootLayout({
       <body className="flex min-h-full flex-col bg-background text-foreground antialiased">
         <Header
           right={
-            <Link
-              href="/design"
-              className="text-sm font-medium text-violet-200 hover:text-white"
-            >
-              Design
-            </Link>
+            <nav className="flex items-center gap-4">
+              <Link
+                href="/scoreboard"
+                className="text-sm font-medium text-violet-200 hover:text-white"
+              >
+                Scoreboard
+              </Link>
+              <Link
+                href="/teams"
+                className="text-sm font-medium text-violet-200 hover:text-white"
+              >
+                Teams
+              </Link>
+            </nav>
           }
         />
         <main className="flex-1">{children}</main>
