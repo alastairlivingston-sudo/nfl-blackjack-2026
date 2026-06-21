@@ -10,11 +10,6 @@ import {
   StatePill,
 } from "@/design";
 
-/**
- * Session-0 landing page. It is a real, themed placeholder that doubles as a
- * showcase of the design system — the live scoreboard / entry flow arrive in
- * later sessions.
- */
 export default function Home() {
   return (
     <Container className="py-8">
@@ -31,9 +26,9 @@ export default function Home() {
           weeks 1&ndash;18. Land on 21 for blackjack &mdash; go over and you&apos;re out.
         </p>
         <div className="mt-6 flex justify-center gap-3">
-          <Button size="lg" disabled>
-            Enter (soon)
-          </Button>
+          <Link href="/entry">
+            <Button size="lg">Sign up &amp; enter</Button>
+          </Link>
           <Link href="/scoreboard">
             <Button size="lg" variant="secondary">
               View scoreboard

@@ -1,5 +1,6 @@
 import { Card, CardTitle, CardSubtitle, Container } from "@/design";
-import { getTeamPlayersBare, listTeams } from "@/lib/db/queries";
+import { getFinalSeasonTotals, getTeamPlayersBare, listTeams } from "@/lib/db/queries";
+import { PLAY_SEASON } from "@/lib/season";
 import { PlayPicker, type TeamSlot } from "./PlayPicker";
 
 // Fresh random teams on every visit (PLAN.md: "stateless v1; replayable") — never cache this page.
@@ -14,8 +15,15 @@ export default async function PlayPage() {
   const teams = await listTeams();
   const randomTeams = pickRandomTeams(teams, 5);
 
+  // Sort each team's roster by 2025 non-passing TDs (best first) without exposing the
+  // number itself — the jeopardy is choosing blind, not seeing raw totals (PLAN.md "21 Generator").
+  const totals = await getFinalSeasonTotals(PLAY_SEASON);
   const slots: TeamSlot[] = await Promise.all(
-    randomTeams.map(async (team) => ({ team, players: await getTeamPlayersBare(team) })),
+    randomTeams.map(async (team) => {
+      const roster = await getTeamPlayersBare(team);
+      roster.sort((a, b) => (totals.get(b.id) ?? 0) - (totals.get(a.id) ?? 0));
+      return { team, players: roster };
+    }),
   );
 
   return (
