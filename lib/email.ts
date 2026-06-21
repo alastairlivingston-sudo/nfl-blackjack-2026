@@ -25,3 +25,31 @@ export async function sendFeedbackDigest(input: { email: string | null; message:
       .join("\n"),
   });
 }
+
+/**
+ * Best-effort alert for the daily stats-refresh cron (see
+ * app/api/cron/refresh-stats/route.ts) — a silent failure here means the
+ * scoreboard quietly goes stale for a day with nobody noticing. Sends to the
+ * admin allowlist; never throws, since a failed alert shouldn't mask the
+ * original error.
+ */
+export async function sendCronFailureAlert(error: unknown): Promise<void> {
+  const apiKey = process.env.AUTH_RESEND_KEY;
+  const admins = (process.env.ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+  if (!apiKey || admins.length === 0) return;
+
+  try {
+    const resend = new Resend(apiKey);
+    await resend.emails.send({
+      from: process.env.AUTH_EMAIL_FROM ?? "NFL Blackjack 2026 <no-reply@nflblackjack2026.app>",
+      to: admins,
+      subject: "⚠️ Stats refresh cron failed — NFL Blackjack 2026",
+      text: `The daily stats refresh job threw:\n\n${error instanceof Error ? error.stack ?? error.message : String(error)}`,
+    });
+  } catch {
+    // Don't let an alerting failure compound the original problem.
+  }
+}

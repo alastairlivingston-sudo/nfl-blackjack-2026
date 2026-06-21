@@ -4,9 +4,9 @@
  * table — never raw picks/stats — so it stays cheap under concurrent load
  * (see PLAN.md "Scalability for ~1,000 users").
  */
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { db } from "./client";
-import { entrants, feedback, leaderboard, picks, players, playerWeekStats } from "./schema";
+import { entrants, feedback, leaderboard, loginAttempts, picks, players, playerWeekStats } from "./schema";
 import { currentSeason } from "../season";
 
 export interface ScoreboardRow {
@@ -328,6 +328,25 @@ export async function listFeedback(): Promise<FeedbackRow[]> {
 
 export async function setFeedbackStatus(id: string, status: FeedbackStatus): Promise<void> {
   await db().update(feedback).set({ status }).where(eq(feedback.id, id));
+}
+
+/** Count of magic-link send attempts for an email or IP since `since` — see `login/actions.ts`. */
+export async function countLoginAttempts(input: { email?: string; ip?: string; since: Date }): Promise<number> {
+  const conn = db();
+  const conditions = [gt(loginAttempts.createdAt, input.since)];
+  if (input.email) conditions.push(eq(loginAttempts.email, input.email));
+  if (input.ip) conditions.push(eq(loginAttempts.ip, input.ip));
+  const [row] = await conn
+    .select({ count: sql<number>`count(*)` })
+    .from(loginAttempts)
+    .where(and(...conditions));
+  return Number(row?.count ?? 0);
+}
+
+export async function recordLoginAttempt(email: string, ip: string): Promise<void> {
+  await db()
+    .insert(loginAttempts)
+    .values({ id: crypto.randomUUID(), email, ip });
 }
 
 /**

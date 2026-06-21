@@ -143,6 +143,20 @@ export const verificationTokens = pgTable(
   (t) => [primaryKey({ columns: [t.identifier, t.token] })],
 );
 
+/**
+ * Tracks magic-link send attempts so `login/actions.ts` can rate-limit both
+ * per-email (stop someone email-bombing one address) and per-IP (stop one
+ * client spraying requests across many addresses). Rows older than the
+ * rate-limit window are irrelevant noise but cheap enough to leave — there's
+ * no realistic volume that makes pruning worth the complexity at this scale.
+ */
+export const loginAttempts = pgTable("login_attempts", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  ip: text("ip").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const feedback = pgTable("feedback", {
   id: text("id").primaryKey(), // cuid
   entrantId: text("entrant_id").references(() => entrants.id, { onDelete: "set null" }),
