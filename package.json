@@ -9,7 +9,10 @@
     "lint": "eslint",
     "import:players": "tsx scripts/import-players.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "dotenv -e .env.local -- tsx lib/db/migrate.ts"
+    "db:migrate": "dotenv -e .env.local -- tsx lib/db/migrate.ts",
+    "test": "tsx --test lib/**/*.test.ts",
+    "stats:ingest": "dotenv -e .env.local -- tsx scripts/ingest-stats.ts",
+    "leaderboard:compute": "dotenv -e .env.local -- tsx scripts/compute-leaderboard.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
