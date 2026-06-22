@@ -149,6 +149,7 @@ export const feedback = pgTable("feedback", {
   email: text("email"),
   message: text("message").notNull(),
   context: text("context"), // page/url the feedback was sent from
+  ip: text("ip"), // request IP, for server-side rate limiting of the public endpoint
   status: text("status").notNull().default("new"), // new | triaged | done
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
