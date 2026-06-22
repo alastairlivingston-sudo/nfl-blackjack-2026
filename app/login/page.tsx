@@ -6,11 +6,11 @@ export default function LoginPage() {
     <Container className="py-8">
       <Card>
         <CardTitle>Sign in</CardTitle>
-        <CardSubtitle>Sign in with Google to enter your lineup.</CardSubtitle>
+        <CardSubtitle>Use your Google account — no password to remember.</CardSubtitle>
 
         <form action={signInWithGoogle} className="mt-4">
           <Button type="submit" className="w-full">
-            Sign in with Google
+            Continue with Google
           </Button>
         </form>
       </Card>

@@ -1,6 +1,6 @@
 {
-  "id": "35407708-9d66-4842-832d-2ef359c8a32a",
-  "prevId": "003eacca-e522-40b9-89a3-8401ebfc1059",
+  "id": "96e5453b-ebc3-4240-a4ca-20caa2822f50",
+  "prevId": "35407708-9d66-4842-832d-2ef359c8a32a",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -206,6 +206,12 @@
         },
         "context": {
           "name": "context",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ip": {
+          "name": "ip",
           "type": "text",
           "primaryKey": false,
           "notNull": false

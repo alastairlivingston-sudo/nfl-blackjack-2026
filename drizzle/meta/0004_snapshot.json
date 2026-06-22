@@ -1,6 +1,6 @@
 {
-  "id": "35407708-9d66-4842-832d-2ef359c8a32a",
-  "prevId": "003eacca-e522-40b9-89a3-8401ebfc1059",
+  "id": "5e9eddba-28db-474d-91d9-0638debf4161",
+  "prevId": "96e5453b-ebc3-4240-a4ca-20caa2822f50",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -140,6 +140,13 @@
           "notNull": true,
           "default": false
         },
+        "donation_confirmed": {
+          "name": "donation_confirmed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "sleeper_handle": {
           "name": "sleeper_handle",
           "type": "text",
@@ -206,6 +213,12 @@
         },
         "context": {
           "name": "context",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ip": {
+          "name": "ip",
           "type": "text",
           "primaryKey": false,
           "notNull": false

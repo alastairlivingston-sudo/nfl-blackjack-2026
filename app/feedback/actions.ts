@@ -1,8 +1,8 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { auth } from "@/auth";
-import { getEntrantByEmail, insertFeedback } from "@/lib/db/queries";
+import { countRecentFeedback, getEntrantByEmail, insertFeedback } from "@/lib/db/queries";
 import { sendFeedbackDigest } from "@/lib/email";
 
 export interface FeedbackState {
@@ -30,7 +30,16 @@ export async function submitFeedback(_prev: FeedbackState, formData: FormData): 
   const email = session?.user?.email ?? null;
   const entrant = email ? await getEntrantByEmail(email) : null;
 
-  await insertFeedback({ entrantId: entrant?.id ?? null, email, message, context });
+  // Real, server-side rate limit (the cookie above is only fast-path UX and is
+  // trivially dropped). Cap to one submission per window per email or IP.
+  const hdrs = await headers();
+  const ip = hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+  const recent = await countRecentFeedback({ email, ip, sinceSeconds: RATE_LIMIT_SECONDS });
+  if (recent > 0) {
+    return { error: "You've just sent feedback — give it a minute before sending more." };
+  }
+
+  await insertFeedback({ entrantId: entrant?.id ?? null, email, message, context, ip });
   await sendFeedbackDigest({ email, message, context });
 
   cookieStore.set(RATE_LIMIT_COOKIE, String(Date.now()), { maxAge: RATE_LIMIT_SECONDS, path: "/" });

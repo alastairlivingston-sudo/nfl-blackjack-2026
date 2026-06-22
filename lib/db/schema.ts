@@ -91,9 +91,10 @@ export const leaderboard = pgTable("leaderboard", {
  * Auth.js (NextAuth v5) tables, shaped to match @auth/drizzle-adapter's
  * Postgres defaults exactly so `DrizzleAdapter(db, {...})` type-checks.
  * Session strategy is JWT (see auth.ts) — `sessions` exists only because the
- * adapter's type requires it; it's never written to. `accounts` stores the
- * linked Google identity. The actual game account is `entrants`, keyed by
- * the same email Google verifies.
+ * adapter's type requires it; it's never written to. `accounts` is written
+ * to on Google (OAuth) sign-in to link the provider account to the `users`
+ * row. The actual game account is `entrants`, keyed by the same verified
+ * email Google returns.
  */
 export const users = pgTable("user", {
   id: text("id")
@@ -143,12 +144,27 @@ export const verificationTokens = pgTable(
   (t) => [primaryKey({ columns: [t.identifier, t.token] })],
 );
 
+/**
+ * Tracks magic-link send attempts so `login/actions.ts` can rate-limit both
+ * per-email (stop someone email-bombing one address) and per-IP (stop one
+ * client spraying requests across many addresses). Rows older than the
+ * rate-limit window are irrelevant noise but cheap enough to leave — there's
+ * no realistic volume that makes pruning worth the complexity at this scale.
+ */
+export const loginAttempts = pgTable("login_attempts", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  ip: text("ip").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const feedback = pgTable("feedback", {
   id: text("id").primaryKey(), // cuid
   entrantId: text("entrant_id").references(() => entrants.id, { onDelete: "set null" }),
   email: text("email"),
   message: text("message").notNull(),
   context: text("context"), // page/url the feedback was sent from
+  ip: text("ip"), // request IP, for server-side rate limiting of the public endpoint
   status: text("status").notNull().default("new"), // new | triaged | done
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

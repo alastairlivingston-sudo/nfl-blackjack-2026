@@ -24,6 +24,9 @@ export function Footer({ justGivingUrl }: { justGivingUrl?: string }) {
           </a>
         ) : null}
         <div className="flex items-center gap-4">
+          <Link href="/rules" className="hover:text-foreground">
+            Rules
+          </Link>
           <Link href="/feedback" className="hover:text-foreground">
             Feedback
           </Link>
