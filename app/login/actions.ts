@@ -19,6 +19,12 @@ async function clientIp(): Promise<string> {
   return h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? "unknown";
 }
 
+export async function signInWithGoogle(): Promise<void> {
+  // Throws a redirect to Google's consent screen; Next handles it, so we must
+  // not wrap this in a try/catch that would swallow the NEXT_REDIRECT signal.
+  await signIn("google", { redirectTo: "/entry" });
+}
+
 export async function sendMagicLink(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!email) return { error: "Enter your email address." };
