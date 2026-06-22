@@ -18,8 +18,19 @@ function getDb() {
 }
 
 let cached: ReturnType<typeof getDb> | undefined;
+let testDb: ReturnType<typeof getDb> | undefined;
+
+/**
+ * Test-only hook: point `db()` at an in-process database (PGlite) so the real
+ * query/scoring/leaderboard code can be exercised without a live Neon
+ * connection. Never called in production code paths.
+ */
+export function __setTestDb(instance: unknown): void {
+  testDb = instance as ReturnType<typeof getDb>;
+}
 
 export function db() {
+  if (testDb) return testDb;
   if (!cached) cached = getDb();
   return cached;
 }
