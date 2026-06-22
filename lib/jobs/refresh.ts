@@ -3,11 +3,25 @@
  * scripts/compute-leaderboard.ts) and the Vercel Cron route handler
  * (app/api/cron/refresh-stats/route.ts) — one implementation, two callers.
  */
-import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { entrants, picks, players, playerWeekStats, leaderboard } from "../db/schema";
 import { fetchWeekStats } from "../sleeper";
 import { scoreLineup, rankEntrants, type PlayerTotal } from "../scoring/score";
+
+/**
+ * Freezes each player's current `team` into `playTeam` wherever it's still
+ * null — see lib/db/schema.ts `players.playTeam` for why this needs to exist
+ * separately from the live, re-imported `team` column. Idempotent: rows that
+ * already have a playTeam are left untouched.
+ */
+export async function backfillPlayTeam(): Promise<number> {
+  const result = await db()
+    .update(players)
+    .set({ playTeam: sql`${players.team}` })
+    .where(isNull(players.playTeam));
+  return result.rowCount ?? 0;
+}
 
 export async function ingestWeek(season: number, week: number): Promise<number> {
   const stats = await fetchWeekStats(season, week);
