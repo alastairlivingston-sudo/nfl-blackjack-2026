@@ -177,12 +177,19 @@ export interface BarePlayer {
   position: string;
 }
 
-/** Players on a team with no totals attached — used by the 21 Generator picker, which hides totals until reveal. */
+/**
+ * Players on a team with no totals attached — used by the 21 Generator picker,
+ * which hides totals until reveal. Grouped by `playTeam` (frozen as of the
+ * 2025 season being scored), falling back to the live `team` for players
+ * never backfilled — NOT `team` directly, which gets overwritten by every
+ * live-season re-import and would silently relabel a traded player's 2025
+ * production under their new team (see schema.ts `players.playTeam`).
+ */
 export async function getTeamPlayersBare(team: string): Promise<BarePlayer[]> {
   return db()
     .select({ id: players.id, fullName: players.fullName, position: players.position })
     .from(players)
-    .where(eq(players.team, team))
+    .where(eq(sql`coalesce(${players.playTeam}, ${players.team})`, team))
     .orderBy(asc(players.fullName));
 }
 
@@ -194,6 +201,39 @@ export async function listTeams(): Promise<string[]> {
     .where(sql`${players.team} is not null`)
     .orderBy(asc(players.team));
   return rows.map((r) => r.team!).filter(Boolean);
+}
+
+/** Distinct 2025-season teams (see `players.playTeam`) — used by the 21 Generator. */
+export async function listPlayTeams(): Promise<string[]> {
+  const teamExpr = sql<string>`coalesce(${players.playTeam}, ${players.team})`;
+  const rows = await db()
+    .selectDistinct({ team: teamExpr })
+    .from(players)
+    .where(sql`coalesce(${players.playTeam}, ${players.team}) is not null`)
+    .orderBy(asc(teamExpr));
+  return rows.map((r) => r.team).filter(Boolean);
+}
+
+/**
+ * Every eligible player's frozen 2025-season team in one query, grouped —
+ * the 21 Generator needs every team's roster up front (it picks 5 teams
+ * client-side), so looping `getTeamPlayersBare` per team is an avoidable N+1.
+ */
+export async function getAllPlayTeamRosters(): Promise<Map<string, BarePlayer[]>> {
+  const teamExpr = sql<string>`coalesce(${players.playTeam}, ${players.team})`;
+  const rows = await db()
+    .select({ id: players.id, fullName: players.fullName, position: players.position, team: teamExpr })
+    .from(players)
+    .where(sql`coalesce(${players.playTeam}, ${players.team}) is not null`)
+    .orderBy(asc(players.fullName));
+
+  const byTeam = new Map<string, BarePlayer[]>();
+  for (const { team, ...player } of rows) {
+    const roster = byTeam.get(team) ?? [];
+    roster.push(player);
+    byTeam.set(team, roster);
+  }
+  return byTeam;
 }
 
 export interface Entrant {
@@ -263,13 +303,16 @@ export async function getEntrantPickIds(entrantId: string): Promise<string[]> {
 /** Looks up players by id, for validating a submitted lineup server-side. */
 export async function getPlayersByIds(
   ids: string[],
-): Promise<{ id: string; fullName: string; team: string | null; position: string; active: boolean }[]> {
+): Promise<
+  { id: string; fullName: string; team: string | null; playTeam: string | null; position: string; active: boolean }[]
+> {
   if (ids.length === 0) return [];
   return db()
     .select({
       id: players.id,
       fullName: players.fullName,
       team: players.team,
+      playTeam: players.playTeam,
       position: players.position,
       active: players.active,
     })
