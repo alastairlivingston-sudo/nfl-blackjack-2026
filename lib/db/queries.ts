@@ -19,6 +19,27 @@ export interface ScoreboardRow {
   submittedAt: Date | null;
 }
 
+export interface EnteredRow {
+  entrantId: string;
+  displayName: string;
+}
+
+/**
+ * Pre-lock scoreboard source: everyone who has confirmed a lineup, straight
+ * from `entrants` — NOT the `leaderboard` table. The leaderboard is only
+ * written by the cron/admin recompute, so reading it pre-lock would hide a
+ * user who just submitted until the next compute (up to a day). Ordered by
+ * submission so the list is stable.
+ */
+export async function getEnteredEntrants(): Promise<EnteredRow[]> {
+  const rows = await db()
+    .select({ entrantId: entrants.id, displayName: entrants.displayName })
+    .from(entrants)
+    .where(sql`${entrants.submittedAt} is not null`)
+    .orderBy(asc(entrants.submittedAt));
+  return rows;
+}
+
 /** Precomputed standings, best rank first then unranked entrants by total. */
 export async function getScoreboard(): Promise<ScoreboardRow[]> {
   const rows = await db()
