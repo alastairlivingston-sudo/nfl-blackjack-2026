@@ -4,7 +4,7 @@
  * table — never raw picks/stats — so it stays cheap under concurrent load
  * (see PLAN.md "Scalability for ~1,000 users").
  */
-import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, or, sql } from "drizzle-orm";
 import { db } from "./client";
 import { entrants, feedback, leaderboard, loginAttempts, picks, players, playerWeekStats } from "./schema";
 import { currentSeason } from "../season";
@@ -185,8 +185,18 @@ export interface Entrant {
   submittedAt: Date | null;
 }
 
+/**
+ * Emails are normalised (trimmed + lowercased) at this boundary so the
+ * one-lineup-per-email rule holds regardless of the casing a magic link was
+ * requested with — Postgres `unique(email)` is case-sensitive, so `Foo@x.com`
+ * and `foo@x.com` would otherwise be two accounts.
+ */
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 export async function getEntrantByEmail(email: string): Promise<Entrant | null> {
-  const [row] = await db().select().from(entrants).where(eq(entrants.email, email));
+  const [row] = await db().select().from(entrants).where(eq(entrants.email, normalizeEmail(email)));
   return row ?? null;
 }
 
@@ -202,7 +212,7 @@ export interface NewEntrantProfile {
 export async function upsertEntrantProfile(profile: NewEntrantProfile): Promise<Entrant> {
   const [row] = await db()
     .insert(entrants)
-    .values({ id: crypto.randomUUID(), ...profile })
+    .values({ id: crypto.randomUUID(), ...profile, email: normalizeEmail(profile.email) })
     .onConflictDoUpdate({
       target: entrants.email,
       set: {
@@ -293,12 +303,37 @@ export interface NewFeedback {
   email?: string | null;
   message: string;
   context?: string | null;
+  ip?: string | null;
 }
 
 export async function insertFeedback(input: NewFeedback): Promise<void> {
   await db()
     .insert(feedback)
     .values({ id: crypto.randomUUID(), status: "new", ...input });
+}
+
+/**
+ * Server-side rate-limit signal for the public feedback endpoint: how many
+ * submissions matched this email or IP within the window. The per-browser
+ * cookie is just fast-path UX — this DB check is the real guard, since a
+ * cookie can be dropped (see PLAN.md "Rate-limit … feedback endpoints").
+ */
+export async function countRecentFeedback(opts: {
+  email?: string | null;
+  ip?: string | null;
+  sinceSeconds: number;
+}): Promise<number> {
+  const matchers = [];
+  if (opts.email) matchers.push(eq(feedback.email, opts.email));
+  if (opts.ip) matchers.push(eq(feedback.ip, opts.ip));
+  if (matchers.length === 0) return 0;
+
+  const since = new Date(Date.now() - opts.sinceSeconds * 1000);
+  const [row] = await db()
+    .select({ n: sql<number>`count(*)` })
+    .from(feedback)
+    .where(and(gte(feedback.createdAt, since), or(...matchers)));
+  return Number(row.n);
 }
 
 export interface FeedbackRow {

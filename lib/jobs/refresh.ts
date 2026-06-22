@@ -3,7 +3,7 @@
  * scripts/compute-leaderboard.ts) and the Vercel Cron route handler
  * (app/api/cron/refresh-stats/route.ts) — one implementation, two callers.
  */
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { entrants, picks, players, playerWeekStats, leaderboard } from "../db/schema";
 import { fetchWeekStats } from "../sleeper";
@@ -12,6 +12,22 @@ import { scoreLineup, rankEntrants, type PlayerTotal } from "../scoring/score";
 export async function ingestWeek(season: number, week: number): Promise<number> {
   const stats = await fetchWeekStats(season, week);
   const scoring = stats.filter((s) => s.rushTd > 0 || s.recTd > 0);
+  const conn = db();
+
+  // Reflect downward corrections (e.g. a TD later rescinded): drop any rows we
+  // previously stored for this week whose player no longer has a non-passing
+  // TD. With no scoring players left, this clears the whole week.
+  const scoringIds = scoring.map((s) => s.playerId);
+  await conn
+    .delete(playerWeekStats)
+    .where(
+      and(
+        eq(playerWeekStats.season, season),
+        eq(playerWeekStats.week, week),
+        scoringIds.length > 0 ? notInArray(playerWeekStats.playerId, scoringIds) : undefined,
+      ),
+    );
+
   if (scoring.length === 0) return 0;
 
   /**
@@ -22,16 +38,16 @@ export async function ingestWeek(season: number, week: number): Promise<number> 
    */
   const knownIds = new Set(
     (
-      await db()
+      await conn
         .select({ id: players.id })
         .from(players)
-        .where(inArray(players.id, scoring.map((s) => s.playerId)))
+        .where(inArray(players.id, scoringIds))
     ).map((r) => r.id),
   );
   const known = scoring.filter((s) => knownIds.has(s.playerId));
   if (known.length === 0) return 0;
 
-  await db()
+  await conn
     .insert(playerWeekStats)
     .values(
       known.map((s) => ({

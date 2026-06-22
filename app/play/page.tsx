@@ -7,7 +7,14 @@ import { PlayPicker, type TeamSlot } from "./PlayPicker";
 export const dynamic = "force-dynamic";
 
 function shuffle<T>(items: T[]): T[] {
-  return [...items].sort(() => Math.random() - 0.5);
+  // Fisher–Yates: a `sort(() => Math.random() - 0.5)` shuffle is biased and
+  // non-uniform, so some items would surface far more often than others.
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
 }
 
 export default async function PlayPage() {
