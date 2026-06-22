@@ -31,8 +31,9 @@ export async function saveProfile(_prev: ActionState, formData: FormData): Promi
 
   const socialHandle = String(formData.get("socialHandle") ?? "").trim() || null;
   const tagConsent = formData.get("tagConsent") === "on";
+  const donationConfirmed = formData.get("donationConfirmed") === "on";
 
-  await upsertEntrantProfile({ email, displayName, socialHandle, tagConsent });
+  await upsertEntrantProfile({ email, displayName, socialHandle, tagConsent, donationConfirmed });
   revalidatePath("/entry");
   return {};
 }

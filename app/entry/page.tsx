@@ -62,9 +62,11 @@ export default async function EntryPage() {
                 displayName: entrant.displayName,
                 socialHandle: entrant.socialHandle,
                 tagConsent: entrant.tagConsent,
+                donationConfirmed: entrant.donationConfirmed,
               }
             : undefined
         }
+        justGivingUrl={process.env.JUSTGIVING_URL}
       />
       {entrant ? <PlayerPicker initialPlayerIds={pickIds} /> : null}
     </Container>

@@ -1,0 +1,1 @@
+ALTER TABLE "entrants" ADD COLUMN "donation_confirmed" boolean DEFAULT false NOT NULL;

@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { ingestSeason, computeLeaderboard } from "@/lib/jobs/refresh";
 import { sendCronFailureAlert } from "@/lib/email";
-import { setFeedbackStatus, type FeedbackStatus } from "@/lib/db/queries";
+import { resetGameData, setFeedbackStatus, type FeedbackStatus } from "@/lib/db/queries";
 import { currentSeason } from "@/lib/season";
 
 export interface RefreshState {
@@ -26,6 +26,26 @@ export async function updateFeedbackStatus(id: string, status: FeedbackStatus): 
   console.log(`[admin] ${admin} set feedback ${id} -> ${status}`);
   await setFeedbackStatus(id, status);
   revalidatePath("/admin");
+}
+
+export interface ResetState {
+  error?: string;
+  done?: boolean;
+}
+
+/** Deletes all entrants/picks/leaderboard rows — for clearing test data before real entries open. Irreversible. */
+export async function resetGameDataAction(_prev: ResetState, formData: FormData): Promise<ResetState> {
+  const admin = await requireAdmin();
+
+  if (String(formData.get("confirm") ?? "") !== "RESET") {
+    return { error: 'Type "RESET" to confirm.' };
+  }
+
+  console.log(`[admin] ${admin} reset all game data`);
+  await resetGameData();
+  revalidatePath("/admin");
+  revalidatePath("/scoreboard");
+  return { done: true };
 }
 
 export async function refreshNow(): Promise<RefreshState> {

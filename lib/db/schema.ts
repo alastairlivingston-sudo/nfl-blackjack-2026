@@ -32,6 +32,7 @@ export const entrants = pgTable("entrants", {
   displayName: text("display_name").notNull(),
   socialHandle: text("social_handle"),
   tagConsent: boolean("tag_consent").notNull().default(false),
+  donationConfirmed: boolean("donation_confirmed").notNull().default(false), // self-attested; PLAN.md keeps donations unenforced
   sleeperHandle: text("sleeper_handle"),
   submittedAt: timestamp("submitted_at", { withTimezone: true }), // set once all 5 picks are confirmed
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -93,7 +94,7 @@ export const leaderboard = pgTable("leaderboard", {
  * adapter's type requires it; it's never written to. `accounts` is written
  * to on Google (OAuth) sign-in to link the provider account to the `users`
  * row. The actual game account is `entrants`, keyed by the same verified
- * email Auth.js receives (from Google, or from a magic link).
+ * email Google returns.
  */
 export const users = pgTable("user", {
   id: text("id")

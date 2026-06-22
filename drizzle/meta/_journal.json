@@ -29,6 +29,13 @@
       "when": 1782096552719,
       "tag": "0003_gorgeous_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782135717228,
+      "tag": "0004_last_living_mummy",
+      "breakpoints": true
     }
   ]
 }

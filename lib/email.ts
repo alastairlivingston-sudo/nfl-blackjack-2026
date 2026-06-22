@@ -1,10 +1,6 @@
 import { Resend } from "resend";
 
-/**
- * Direct Resend send for one-off notifications (feedback digests). Distinct
- * from Auth.js's own Resend *provider*, which handles magic-link emails
- * through its own client instance.
- */
+/** Direct Resend send for one-off notifications (feedback digests). Sign-in is Google OAuth, not email. */
 export async function sendFeedbackDigest(input: { email: string | null; message: string; context: string | null }) {
   const apiKey = process.env.AUTH_RESEND_KEY;
   const to = process.env.FEEDBACK_NOTIFY_EMAIL;
