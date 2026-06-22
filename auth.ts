@@ -1,4 +1,5 @@
 import NextAuth from "next-auth";
+import Google from "next-auth/providers/google";
 import Resend from "next-auth/providers/resend";
 import Nodemailer from "next-auth/providers/nodemailer";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
@@ -31,6 +32,19 @@ const emailProvider = process.env.EMAIL_SERVER_HOST
   : Resend({ from });
 
 /**
+ * "Continue with Google" — the primary sign-in. It needs no email-sending
+ * infrastructure (no domain, no SMTP, no daily send cap), and Google handles
+ * the authentication security. The provider reads AUTH_GOOGLE_ID /
+ * AUTH_GOOGLE_SECRET from the environment automatically (Auth.js v5
+ * convention). Google still returns the user's verified email, which is the
+ * same identity key the game keys off (entrants.email) — so no data-model
+ * change is needed. The magic-link email provider stays registered as a
+ * fallback for anyone without a Google account; the login page only surfaces
+ * it when email delivery is actually configured.
+ */
+const providers = process.env.AUTH_GOOGLE_ID ? [Google, emailProvider] : [emailProvider];
+
+/**
  * Passwordless magic-link auth (PLAN.md locked decision). JWT sessions —
  * the Drizzle adapter is only exercised for verification tokens + the
  * `users` row Auth.js needs to track who clicked a link; `accounts`/
@@ -45,7 +59,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     sessionsTable: sessions,
     verificationTokensTable: verificationTokens,
   }),
-  providers: [emailProvider],
+  providers,
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",

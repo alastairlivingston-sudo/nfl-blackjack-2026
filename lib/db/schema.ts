@@ -90,10 +90,10 @@ export const leaderboard = pgTable("leaderboard", {
  * Auth.js (NextAuth v5) tables, shaped to match @auth/drizzle-adapter's
  * Postgres defaults exactly so `DrizzleAdapter(db, {...})` type-checks.
  * Session strategy is JWT (see auth.ts) — `sessions` exists only because the
- * adapter's type requires it; it's never written to. `accounts` is likewise
- * unused (no OAuth providers, only magic-link email) but required by the
- * adapter's schema type. The actual game account is `entrants`, keyed by
- * the same email Auth.js verifies.
+ * adapter's type requires it; it's never written to. `accounts` is written
+ * to on Google (OAuth) sign-in to link the provider account to the `users`
+ * row. The actual game account is `entrants`, keyed by the same verified
+ * email Auth.js receives (from Google, or from a magic link).
  */
 export const users = pgTable("user", {
   id: text("id")
