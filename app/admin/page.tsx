@@ -5,6 +5,7 @@ import { getAdminStats, listFeedback } from "@/lib/db/queries";
 import { isLocked } from "@/lib/lock";
 import { Badge, Card, CardTitle, CardSubtitle, Container } from "@/design";
 import { RefreshButton } from "./RefreshButton";
+import { ResetDataButton } from "./ResetDataButton";
 import { FeedbackStatusSelect } from "./FeedbackStatusSelect";
 
 export default async function AdminPage() {
@@ -32,6 +33,17 @@ export default async function AdminPage() {
         <CardSubtitle>Pulls the latest Sleeper stats and recomputes the leaderboard now.</CardSubtitle>
         <div className="mt-3">
           <RefreshButton />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>Danger zone</CardTitle>
+        <CardSubtitle>
+          Permanently deletes every entrant, profile, and pick — use this to wipe test entries
+          before real signups open. Players, stats, and feedback are untouched.
+        </CardSubtitle>
+        <div className="mt-3">
+          <ResetDataButton />
         </div>
       </Card>
 

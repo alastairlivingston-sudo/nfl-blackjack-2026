@@ -6,8 +6,15 @@ import { saveProfile, type ActionState } from "./actions";
 
 export function ProfileForm({
   initial,
+  justGivingUrl,
 }: {
-  initial?: { displayName: string; socialHandle: string | null; tagConsent: boolean };
+  initial?: {
+    displayName: string;
+    socialHandle: string | null;
+    tagConsent: boolean;
+    donationConfirmed: boolean;
+  };
+  justGivingUrl?: string;
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(saveProfile, {});
 
@@ -48,6 +55,34 @@ export function ProfileForm({
           />
           OK to tag my social handle if I win
         </label>
+
+        <div className="rounded-xl border border-border bg-surface-2 p-3">
+          <p className="text-sm text-muted">
+            This is a charity game — entry is free, but we hope you&apos;ll chip in.
+            {justGivingUrl ? (
+              <>
+                {" "}
+                <a
+                  href={justGivingUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold text-violet-300 hover:text-white"
+                >
+                  Donate on JustGiving →
+                </a>
+              </>
+            ) : null}
+          </p>
+          <label className="mt-2 flex items-center gap-2 text-sm text-muted">
+            <input
+              type="checkbox"
+              name="donationConfirmed"
+              defaultChecked={initial?.donationConfirmed}
+              className="h-4 w-4 rounded border-border bg-surface-2"
+            />
+            I&apos;ve made a donation
+          </label>
+        </div>
 
         {state.error ? <p className="text-sm text-danger">{state.error}</p> : null}
 

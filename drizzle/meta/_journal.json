@@ -15,6 +15,13 @@
       "when": 1782058489075,
       "tag": "0001_overjoyed_meggan",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782120827650,
+      "tag": "0002_far_queen_noir",
+      "breakpoints": true
     }
   ]
 }

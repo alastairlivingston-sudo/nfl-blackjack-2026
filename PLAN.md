@@ -13,7 +13,7 @@ fun single-player **"21 Generator"** practice mode using completed 2025 stats.
 | Area | Decision |
 |---|---|
 | Entries | In-app; app is source of truth. **One lineup per email.** |
-| Auth | Passwordless **magic-link by email** (Auth.js / NextAuth v5 + Resend). |
+| Auth | **Google OAuth only** (Auth.js / NextAuth v5). Magic-link by email was dropped — no transactional email sender is configured for sign-in. |
 | Database | **Vercel Postgres (Neon)** via the serverless HTTP driver. |
 | Stats source | **Sleeper API** (free, no key) primary; ESPN fallback. |
 | Player picker | **Typeahead from a prebuilt player list — no fuzzy matching.** Picks stored as exact `player_id`. |
@@ -74,7 +74,7 @@ fun single-player **"21 Generator"** practice mode using completed 2025 stats.
 - **Session 1 — Scaffold + data layer.** ✅ Drizzle schema/migrations (`lib/db/`), Sleeper player import → `players.json` + seed SQL. **Live Neon DB connected, migrated, and seeded (948 players confirmed in `players` table).**
 - **Session 2 — Stats ingestion + scoring.** ✅ Scoring engine (`lib/scoring/score.ts`, 11 unit tests), Sleeper weekly TD ingestion (`lib/sleeper.ts`), shared job logic (`lib/jobs/refresh.ts`) called by both CLI scripts and the cron route (`app/api/cron/refresh-stats`), `vercel.json` schedule (daily, Hobby-plan compatible).
 - **Session 3 — Public scoreboard.** ✅ `/scoreboard` reads the precomputed `leaderboard` table (ISR, `revalidate = 60`); pre-lock it only shows "Entered" status, post-lock (`lib/lock.ts`, `LOCK_AT` env) it reveals totals/state/rank and links to per-entrant lineups (`/entrants/[id]`). Player detail (`/players/[id]`: weekly TD log + season total + "picked by" once locked) and team pages (`/teams`, `/teams/[team]`).
-- **Session 4 — Auth + entries + admin.** ✅ Magic-link login via Auth.js v5 (Resend provider, JWT sessions, `@auth/drizzle-adapter`); `/entry` creates/edits the entrant profile and a 5-player typeahead lineup (no fuzzy matching, client-filtered against `players.json`) until lock, then shows a read-only final lineup; `/admin` (env allowlist via `lib/admin.ts`) shows entrant/submission counts and a "refresh now" button that runs the same ingest+leaderboard job as the cron route on demand.
+- **Session 4 — Auth + entries + admin.** ✅ Google OAuth login via Auth.js v5 (Google provider, JWT sessions, `@auth/drizzle-adapter`); `/entry` creates/edits the entrant profile (incl. a self-attested donation checkbox) and a 5-player typeahead lineup (no fuzzy matching, client-filtered against `players.json`) until lock, then shows a read-only final lineup; `/admin` (env allowlist via `lib/admin.ts`) shows entrant/submission counts, a "refresh now" button that runs the same ingest+leaderboard job as the cron route on demand, and a danger-zone reset for clearing test entrants/picks before launch.
 - **Session 5 — Feedback + polish + deploy.** ✅ `/feedback` form (stored in `feedback` table + emailed digest via Resend if `FEEDBACK_NOTIFY_EMAIL` is set) with a per-browser cooldown via a signed-free timestamp cookie; `/admin` gained a feedback list with inline status updates (new/triaged/done); `/privacy` note; JustGiving CTA moved to `JUSTGIVING_URL` env (footer link, hidden when unset). Deploy to Vercel still pending — needs real `DATABASE_URL`/Resend/Auth secrets in the Vercel project before going live.
 - **Session 6 (nice-to-have) — 21 Generator 2025.** ✅ `/play` (always dynamic, replayable, no accounts) rolls 5 random teams server-side, lets you pick one player per team with totals hidden, then a `revealPlayLineup` action scores the pick against **final 2025** non-passing TDs (reuses `scoreLineup`/`playerWeekStats` with a fixed `PLAY_SEASON = 2025`, separate from the live `NFL_SEASON`). Run `npm run stats:ingest -- --season=2025` once to backfill those final totals. Fixed a latent bug while wiring this up: `seasonTotalsByPlayer`/`computeLeaderboard`/`getPlayer` previously summed `playerWeekStats` across **all** seasons — harmless with only one season's data, but would have double-counted 2025+2026 once both lived in the same table. All three now filter by season explicitly.
 
@@ -93,4 +93,4 @@ fun single-player **"21 Generator"** practice mode using completed 2025 stats.
 - "Each of 5 players ≥1 non-passing TD or invalid" stays a rule.
 - All-bust fallback = lowest total >21 wins.
 - 21 Generator is stateless + replayable.
-- Auth via **Auth.js (NextAuth v5)** + **Resend**.
+- Auth via **Auth.js (NextAuth v5)** + **Google OAuth**.

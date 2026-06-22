@@ -32,6 +32,7 @@ export const entrants = pgTable("entrants", {
   displayName: text("display_name").notNull(),
   socialHandle: text("social_handle"),
   tagConsent: boolean("tag_consent").notNull().default(false),
+  donationConfirmed: boolean("donation_confirmed").notNull().default(false), // self-attested; PLAN.md keeps donations unenforced
   sleeperHandle: text("sleeper_handle"),
   submittedAt: timestamp("submitted_at", { withTimezone: true }), // set once all 5 picks are confirmed
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -90,10 +91,9 @@ export const leaderboard = pgTable("leaderboard", {
  * Auth.js (NextAuth v5) tables, shaped to match @auth/drizzle-adapter's
  * Postgres defaults exactly so `DrizzleAdapter(db, {...})` type-checks.
  * Session strategy is JWT (see auth.ts) — `sessions` exists only because the
- * adapter's type requires it; it's never written to. `accounts` is likewise
- * unused (no OAuth providers, only magic-link email) but required by the
- * adapter's schema type. The actual game account is `entrants`, keyed by
- * the same email Auth.js verifies.
+ * adapter's type requires it; it's never written to. `accounts` stores the
+ * linked Google identity. The actual game account is `entrants`, keyed by
+ * the same email Google verifies.
  */
 export const users = pgTable("user", {
   id: text("id")

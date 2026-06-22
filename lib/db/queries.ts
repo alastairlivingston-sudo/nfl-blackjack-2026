@@ -181,6 +181,7 @@ export interface Entrant {
   displayName: string;
   socialHandle: string | null;
   tagConsent: boolean;
+  donationConfirmed: boolean;
   sleeperHandle: string | null;
   submittedAt: Date | null;
 }
@@ -195,6 +196,7 @@ export interface NewEntrantProfile {
   displayName: string;
   socialHandle?: string | null;
   tagConsent: boolean;
+  donationConfirmed: boolean;
   sleeperHandle?: string | null;
 }
 
@@ -209,6 +211,7 @@ export async function upsertEntrantProfile(profile: NewEntrantProfile): Promise<
         displayName: profile.displayName,
         socialHandle: profile.socialHandle ?? null,
         tagConsent: profile.tagConsent,
+        donationConfirmed: profile.donationConfirmed,
         sleeperHandle: profile.sleeperHandle ?? null,
       },
     })
@@ -284,6 +287,16 @@ export async function getAdminStats(): Promise<AdminStats> {
     })
     .from(entrants);
   return { entrantCount: Number(row.entrantCount), submittedCount: Number(row.submittedCount) };
+}
+
+/**
+ * Wipes all game data (entrants, picks, leaderboard via cascade) so the
+ * production DB can be reset between test rounds without touching the
+ * `players` reference table, `player_week_stats` cache, or Auth.js identity
+ * tables. Admin-gated, irreversible.
+ */
+export async function resetGameData(): Promise<void> {
+  await db().delete(entrants);
 }
 
 export type FeedbackStatus = "new" | "triaged" | "done";
