@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Container, Card, CardTitle, CardSubtitle, StatePill, Badge, type LineupState } from "@/design";
-import { getScoreboard } from "@/lib/db/queries";
+import { getEnteredEntrants, getScoreboard } from "@/lib/db/queries";
 import { isLocked } from "@/lib/lock";
 
 export const metadata: Metadata = {
@@ -13,7 +13,12 @@ export const metadata: Metadata = {
 export const revalidate = 60;
 
 export default async function ScoreboardPage() {
-  const [rows, locked] = await Promise.all([getScoreboard(), Promise.resolve(isLocked())]);
+  const locked = isLocked();
+  // Pre-lock reads entrants directly (so a fresh submission shows immediately);
+  // post-lock reads the precomputed leaderboard for totals/state/rank.
+  const rows = locked ? await getScoreboard() : [];
+  const entered = locked ? [] : await getEnteredEntrants();
+  const count = locked ? rows.length : entered.length;
 
   return (
     <Container className="space-y-6 py-8">
@@ -29,15 +34,29 @@ export default async function ScoreboardPage() {
         </p>
       </header>
 
-      {rows.length === 0 ? (
+      {count === 0 ? (
         <Card>
           <CardTitle>No entrants yet</CardTitle>
           <CardSubtitle>Come back once entries open.</CardSubtitle>
         </Card>
-      ) : (
+      ) : locked ? (
         <Card className="divide-y divide-border p-0">
           {rows.map((row, i) => (
-            <ScoreboardRow key={row.entrantId} row={row} locked={locked} position={i + 1} />
+            <ScoreboardRow key={row.entrantId} row={row} locked position={i + 1} />
+          ))}
+        </Card>
+      ) : (
+        <Card className="divide-y divide-border p-0">
+          {entered.map((row, i) => (
+            <div key={row.entrantId} className="flex items-center justify-between gap-3 px-4 py-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="w-6 shrink-0 text-right text-sm font-bold tabular-nums text-muted">
+                  {i + 1}
+                </span>
+                <span className="truncate font-semibold">{row.displayName}</span>
+              </div>
+              <Badge>Entered</Badge>
+            </div>
           ))}
         </Card>
       )}

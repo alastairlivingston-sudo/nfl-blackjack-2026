@@ -30,7 +30,7 @@ export default async function TeamPage({ params }: { params: Promise<{ team: str
       <h1 className="text-3xl font-extrabold tracking-tight">{teamCode}</h1>
 
       <Card>
-        <CardTitle>Roster — eligible non-passing scorers</CardTitle>
+        <CardTitle>Roster — non-passing TDs this season</CardTitle>
         <div className="mt-3 space-y-2">
           {roster.map((p) => (
             <Link key={p.id} href={`/players/${p.id}`}>

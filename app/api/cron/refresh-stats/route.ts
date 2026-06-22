@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ingestSeason, computeLeaderboard } from "@/lib/jobs/refresh";
 import { currentSeason } from "@/lib/season";
+import { sendCronFailureAlert } from "@/lib/email";
 
 export const maxDuration = 60;
 
@@ -21,8 +22,13 @@ export async function GET(request: Request) {
   }
 
   const season = currentSeason();
-  await ingestSeason(season);
-  const entrantCount = await computeLeaderboard(season);
-
-  return NextResponse.json({ ok: true, season, entrantCount });
+  try {
+    await ingestSeason(season);
+    const entrantCount = await computeLeaderboard(season);
+    return NextResponse.json({ ok: true, season, entrantCount });
+  } catch (err) {
+    console.error("Stats refresh cron failed", err);
+    await sendCronFailureAlert(err);
+    return NextResponse.json({ error: "Stats refresh failed" }, { status: 500 });
+  }
 }

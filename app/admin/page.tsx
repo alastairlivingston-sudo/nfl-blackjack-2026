@@ -2,10 +2,16 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { getAdminStats, listFeedback } from "@/lib/db/queries";
-import { isLocked } from "@/lib/lock";
+import { isLocked, lockAt } from "@/lib/lock";
 import { Badge, Card, CardTitle, CardSubtitle, Container } from "@/design";
 import { RefreshButton } from "./RefreshButton";
+import { ResetDataButton } from "./ResetDataButton";
 import { FeedbackStatusSelect } from "./FeedbackStatusSelect";
+
+// Matches the cron route's budget — the manual "refresh now" button calls the
+// same ingestSeason job, which without this falls back to Vercel's default
+// (much shorter) function timeout and can get killed mid-ingest with no alert.
+export const maxDuration = 60;
 
 export default async function AdminPage() {
   const session = await auth();
@@ -13,6 +19,7 @@ export default async function AdminPage() {
 
   const stats = await getAdminStats();
   const locked = isLocked();
+  const lockTime = lockAt();
   const feedbackRows = await listFeedback();
 
   return (
@@ -22,8 +29,17 @@ export default async function AdminPage() {
         <CardSubtitle>
           {stats.submittedCount} of {stats.entrantCount} profiles have a confirmed lineup.
         </CardSubtitle>
-        <div className="mt-3">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <Badge>{locked ? "Locked" : "Open"}</Badge>
+          {lockTime ? (
+            <span className="text-xs text-muted">
+              {locked ? "Locked at" : "Locks at"} {lockTime.toISOString()}
+            </span>
+          ) : (
+            <span className="text-xs font-semibold text-warning">
+              ⚠ LOCK_AT is not set — entries will never lock and the scoreboard will never reveal.
+            </span>
+          )}
         </div>
       </Card>
 
@@ -32,6 +48,17 @@ export default async function AdminPage() {
         <CardSubtitle>Pulls the latest Sleeper stats and recomputes the leaderboard now.</CardSubtitle>
         <div className="mt-3">
           <RefreshButton />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>Danger zone</CardTitle>
+        <CardSubtitle>
+          Permanently deletes every entrant, profile, and pick — use this to wipe test entries
+          before real signups open. Players, stats, and feedback are untouched.
+        </CardSubtitle>
+        <div className="mt-3">
+          <ResetDataButton />
         </div>
       </Card>
 

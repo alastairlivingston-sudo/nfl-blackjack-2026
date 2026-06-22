@@ -8,7 +8,7 @@ export default function PrivacyPage() {
         <CardSubtitle>What we collect and why.</CardSubtitle>
         <div className="mt-4 space-y-3 text-sm text-muted">
           <p>
-            We store your email (for magic-link sign-in), the display name and optional social
+            We store your email (from Google sign-in), the display name and optional social
             handle you enter, and your 5 player picks. Your email is never shown publicly — only
             your display name appears on the scoreboard.
           </p>
