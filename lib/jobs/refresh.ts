@@ -25,7 +25,9 @@ export async function backfillPlayTeam(): Promise<number> {
 
 export async function ingestWeek(season: number, week: number): Promise<number> {
   const stats = await fetchWeekStats(season, week);
-  const scoring = stats.filter((s) => s.rushTd > 0 || s.recTd > 0);
+  const scoring = stats.filter(
+    (s) => s.rushTd > 0 || s.recTd > 0 || s.returnTd > 0 || s.recoveryTd > 0,
+  );
   const conn = db();
 
   // Reflect downward corrections (e.g. a TD later rescinded): drop any rows we
@@ -70,6 +72,8 @@ export async function ingestWeek(season: number, week: number): Promise<number> 
         week,
         rushTd: s.rushTd,
         recTd: s.recTd,
+        returnTd: s.returnTd,
+        recoveryTd: s.recoveryTd,
       })),
     )
     .onConflictDoUpdate({
@@ -77,6 +81,8 @@ export async function ingestWeek(season: number, week: number): Promise<number> 
       set: {
         rushTd: sql`excluded.rush_td`,
         recTd: sql`excluded.rec_td`,
+        returnTd: sql`excluded.return_td`,
+        recoveryTd: sql`excluded.recovery_td`,
         updatedAt: sql`now()`,
       },
     });
@@ -96,7 +102,7 @@ export async function computeLeaderboard(season: number): Promise<number> {
   const totalsRows = await conn
     .select({
       playerId: playerWeekStats.playerId,
-      total: sql<number>`sum(${playerWeekStats.rushTd} + ${playerWeekStats.recTd})`,
+      total: sql<number>`sum(${playerWeekStats.rushTd} + ${playerWeekStats.recTd} + ${playerWeekStats.returnTd} + ${playerWeekStats.recoveryTd})`,
     })
     .from(playerWeekStats)
     .where(eq(playerWeekStats.season, season))

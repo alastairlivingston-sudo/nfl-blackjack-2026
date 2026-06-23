@@ -56,27 +56,42 @@ export interface RankedEntrant extends RankableEntrant {
 }
 
 /**
- * Ranks entrants per the locked win condition: closest to 21 without busting.
- * Among VALID, non-bust lineups the highest total wins; ties break by earliest
- * submission. If every valid lineup busts, the lowest-total bust wins instead
- * (closest to 21 from above) — see PLAN.md's "all lineups bust" edge case.
+ * Ranks entrants per the locked win condition: you must hit EXACTLY 21 to win.
+ *
+ * - If any VALID lineup totals 21 (blackjack), only those lineups rank — ordered
+ *   by earliest submission. Every other entrant (invalid, valid short, valid bust)
+ *   is unranked (`rank: null`).
+ * - If NObody hits 21, prizes are raffled (a real-world action, not computed here).
+ *   For a meaningful leaderboard ordering in that case we fall back to closest-to-21:
+ *   among valid lineups, the highest non-bust total first; if every valid lineup
+ *   busts, the lowest bust first (closest from above). Ties break by earliest
+ *   submission. Invalid lineups never rank.
  */
 export function rankEntrants(entrants: RankableEntrant[]): RankedEntrant[] {
   const valid = entrants.filter((e) => e.scored.valid);
-  const nonBust = valid.filter((e) => e.scored.state !== "bust");
-  const pool = nonBust.length > 0 ? nonBust : valid.filter((e) => e.scored.state === "bust");
+  const blackjacks = valid.filter((e) => e.scored.state === "blackjack");
 
   const sortKey = (e: RankableEntrant) => e.submittedAt.getTime();
-  const sorted = [...pool].sort((a, b) => {
-    if (nonBust.length > 0) {
-      // Higher total is better; ties go to earlier submission.
-      if (b.scored.totalTd !== a.scored.totalTd) return b.scored.totalTd - a.scored.totalTd;
-    } else {
-      // All-bust fallback: lowest total (closest to 21 from above) wins.
-      if (a.scored.totalTd !== b.scored.totalTd) return a.scored.totalTd - b.scored.totalTd;
-    }
-    return sortKey(a) - sortKey(b);
-  });
+
+  let sorted: RankableEntrant[];
+  if (blackjacks.length > 0) {
+    // Exact 21 is the only way to win — rank the 21s by earliest submission.
+    sorted = [...blackjacks].sort((a, b) => sortKey(a) - sortKey(b));
+  } else {
+    // Nobody hit 21: closest-to-21 ordering for display (prizes raffled IRL).
+    const nonBust = valid.filter((e) => e.scored.state !== "bust");
+    const pool = nonBust.length > 0 ? nonBust : valid.filter((e) => e.scored.state === "bust");
+    sorted = [...pool].sort((a, b) => {
+      if (nonBust.length > 0) {
+        // Higher total is closer to 21 from below; ties go to earlier submission.
+        if (b.scored.totalTd !== a.scored.totalTd) return b.scored.totalTd - a.scored.totalTd;
+      } else {
+        // All-bust fallback: lowest total (closest to 21 from above) first.
+        if (a.scored.totalTd !== b.scored.totalTd) return a.scored.totalTd - b.scored.totalTd;
+      }
+      return sortKey(a) - sortKey(b);
+    });
+  }
 
   const rankByEntrantId = new Map(sorted.map((e, i) => [e.entrantId, i + 1]));
 

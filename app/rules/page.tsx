@@ -19,13 +19,13 @@ export default function RulesPage() {
           multiple entrants — it&apos;s not a draft.
         </Rule>
         <Rule title="The score">
-          Each player&apos;s <span className="text-foreground">non-passing touchdowns</span> (rushing +
-          receiving) are added up across the 2026 regular season, weeks 1–18. Your lineup&apos;s total
-          is the sum across all 5 players.
+          Each player&apos;s <span className="text-foreground">non-passing touchdowns</span> (rushing,
+          receiving, return and recovery) are added up across the 2026 regular season, weeks 1–18.
+          Your lineup&apos;s total is the sum across all 5 players.
         </Rule>
         <Rule title="The goal">
-          Get as close to <span className="font-semibold text-foreground">21</span> as possible without
-          going over. Exactly 21 is blackjack. Over 21 busts.
+          Get <span className="font-semibold text-foreground">exactly 21</span> for blackjack. Over 21
+          busts; under and you&apos;re short.
         </Rule>
         <Rule title="Validity">
           A lineup only counts if <span className="text-foreground">every one of your 5 players scores
@@ -33,12 +33,11 @@ export default function RulesPage() {
           lineup is invalid and can&apos;t win, no matter the total.
         </Rule>
         <Rule title="Winning">
-          Among valid lineups, the highest total that&apos;s 21 or under wins. Ties are broken by
-          whoever submitted their lineup first.
+          Among valid lineups, anyone who gets <span className="font-semibold text-foreground">21</span>{" "}
+          wins. Ties on the leaderboard are broken by whoever submitted their lineup first.
         </Rule>
-        <Rule title="If everyone busts">
-          If every valid lineup goes over 21, the lowest total above 21 wins instead — closest from
-          the other side. Same tie-break.
+        <Rule title="If everyone busts or falls short">
+          Like in 2025, when no one hit blackjack, prizes are raffled away at the end of the year.
         </Rule>
         <Rule title="One entry, one email">
           One lineup per email address. You can edit your picks as many times as you like until lock.
@@ -47,10 +46,19 @@ export default function RulesPage() {
           Entries lock the moment Week 1 kicks off. After that, lineups are frozen and revealed
           publicly on the scoreboard.
         </Rule>
-        <Rule title="No purchase, no prize money">
-          This is a free-to-enter charity game for fun and bragging rights. There&apos;s no entry fee
-          and no cash prize. Any donations via the JustGiving link are entirely optional and have no
-          bearing on the game.
+        <Rule title="No donation, no prize">
+          This is a free-to-enter charity game for fun and bragging rights. But to be eligible for
+          prizes you&apos;ll need to donate via our{" "}
+          <a
+            href="https://www.justgiving.com/page/nflblackjack26"
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-violet-300 hover:text-white"
+          >
+            JustGiving page
+          </a>
+          . There&apos;s no set amount — pay what you can afford; if you&apos;re able, we suggest £10
+          to Petals.
         </Rule>
         <Rule title="Player eligibility / corrections">
           We score off third-party NFL stats feeds. If a stat gets corrected upstream after the fact,

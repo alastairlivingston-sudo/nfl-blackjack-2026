@@ -114,7 +114,7 @@ export interface PlayerDetail {
   team: string | null;
   position: string;
   seasonTotal: number;
-  weeks: { week: number; rushTd: number; recTd: number }[];
+  weeks: { week: number; rushTd: number; recTd: number; returnTd: number; recoveryTd: number }[];
 }
 
 export async function getPlayer(playerId: string): Promise<PlayerDetail | null> {
@@ -126,12 +126,17 @@ export async function getPlayer(playerId: string): Promise<PlayerDetail | null> 
       week: playerWeekStats.week,
       rushTd: playerWeekStats.rushTd,
       recTd: playerWeekStats.recTd,
+      returnTd: playerWeekStats.returnTd,
+      recoveryTd: playerWeekStats.recoveryTd,
     })
     .from(playerWeekStats)
     .where(and(eq(playerWeekStats.playerId, playerId), eq(playerWeekStats.season, currentSeason())))
     .orderBy(asc(playerWeekStats.week));
 
-  const seasonTotal = weekRows.reduce((sum, w) => sum + w.rushTd + w.recTd, 0);
+  const seasonTotal = weekRows.reduce(
+    (sum, w) => sum + w.rushTd + w.recTd + w.returnTd + w.recoveryTd,
+    0,
+  );
 
   return { ...player, seasonTotal, weeks: weekRows };
 }
@@ -472,7 +477,7 @@ async function seasonTotalsByPlayer(season: number = currentSeason()): Promise<M
   const rows = await db()
     .select({
       playerId: playerWeekStats.playerId,
-      total: sql<number>`sum(${playerWeekStats.rushTd} + ${playerWeekStats.recTd})`,
+      total: sql<number>`sum(${playerWeekStats.rushTd} + ${playerWeekStats.recTd} + ${playerWeekStats.returnTd} + ${playerWeekStats.recoveryTd})`,
     })
     .from(playerWeekStats)
     .where(eq(playerWeekStats.season, season))

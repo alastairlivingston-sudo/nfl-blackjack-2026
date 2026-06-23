@@ -68,7 +68,7 @@ export function PlayerPicker({ initialPlayerIds }: { initialPlayerIds: string[] 
   return (
     <Card>
       <CardTitle>Your lineup</CardTitle>
-      <CardSubtitle>Pick exactly 5 players. Closest to 21 non-passing TDs without busting wins.</CardSubtitle>
+      <CardSubtitle>Pick exactly 5 players. Hit exactly 21 non-passing TDs for blackjack.</CardSubtitle>
 
       <div className="mt-4 space-y-2">
         {selected.map((p) => (

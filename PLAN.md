@@ -2,9 +2,9 @@
 
 ## Context
 We're building a season-long fantasy-style charity game from scratch. Players each pick
-**5 NFL players** and try to make their combined **non-passing touchdowns (rushing +
-receiving)** across the **2026 regular season (weeks 1–18)** land as close to **21** as
-possible without going over — blackjack with TDs. The app is the source of truth for
+**5 NFL players** and try to make their combined **non-passing touchdowns (rushing,
+receiving, return + recovery)** across the **2026 regular season (weeks 1–18)** land on
+**exactly 21** — blackjack with TDs. The app is the source of truth for
 entries, scores itself off live NFL stats, and shows an always-on public scoreboard. The
 outcome is a polished, mobile-first web app that comfortably handles ~1,000 users, plus a
 fun single-player **"21 Generator"** practice mode using completed 2025 stats.
@@ -18,19 +18,19 @@ fun single-player **"21 Generator"** practice mode using completed 2025 stats.
 | Stats source | **Sleeper API** (free, no key) primary; ESPN fallback. |
 | Player picker | **Typeahead from a prebuilt player list — no fuzzy matching.** Picks stored as exact `player_id`. |
 | Lock & reveal | **Single deadline at Week 1 kickoff.** Editable until then, frozen + publicly revealed after. |
-| Win condition | **Closest to 21 without busting.** >21 busts; highest total ≤21 wins; ties → earliest valid submission. |
+| Win condition | **Exactly 21 wins.** Among valid lineups, only those totalling exactly 21 win; ties → earliest submission. If nobody hits 21, prizes are **raffled** and the board falls back to closest-to-21 ordering for display only. |
 | Donations | **Not enforced.** External JustGiving link/CTA only; does not affect validity. |
 | Feedback | In-app form → stored + emailed digest + admin aggregation view; fixes shipped in a later Claude session. |
 | Design | Built here as a self-contained, extractable layer. Extraction to its own public repo = v2. |
 
 ## Scoring engine (precise spec)
-- **Unit:** a player's non-passing TDs = `rush_td + rec_td`, summed over weeks 1–18 of the 2026 regular season. (QB rushing TDs count; defensive/special-teams TDs never count.)
+- **Unit:** a player's non-passing TDs = `rush_td + rec_td + st_td + fum_rec_td` from Sleeper (rushing, receiving, kick/punt-return, fumble-recovery), summed over weeks 1–18 of the 2026 regular season. (QB rushing TDs count; Sleeper's `kr_td`/`pr_td` are team-level aggregates and are unused; team defensive/D-ST TDs never count.)
 - **Lineup:** exactly **5 distinct** players. Same player may appear across *different* entrants (not a draft).
 - **Total:** sum of all 5 players' non-passing TDs.
 - **Eligibility/validity:** a lineup is **VALID** only if **each of the 5 players scores ≥1 non-passing TD** by end of Week 18; otherwise **INVALID** (cannot win), even if the total is good.
 - **States:** `invalid` (any player on 0) → `short` (<21) → `blackjack` (=21) → `bust` (>21).
-- **Winner:** among VALID lineups, exclude busts; the **highest total ≤21** wins (21 = blackjack is the ceiling). **Tie → earliest `submitted_at`.**
-- **Edge — all valid lineups bust:** fallback to the **lowest total >21** (closest from above), tie → earliest submission.
+- **Winner:** among VALID lineups, only those with **exactly 21** (blackjack) win. **Tie → earliest `submitted_at`.**
+- **Edge — nobody hits 21:** prizes are **raffled** (a real-world action, not computed). The leaderboard still orders entrants by closeness to 21 (valid non-bust highest first; if all valid lineups bust, lowest bust first; tie → earliest submission) for display only — no one is a "winner".
 
 ## Architecture & stack
 - **Next.js (App Router) on Vercel.** Server Components for read paths, Route Handlers for mutations.
@@ -50,7 +50,7 @@ fun single-player **"21 Generator"** practice mode using completed 2025 stats.
 - **entrants** — `id`, `email` (unique), `display_name`, `social_handle`, `tag_consent` (bool), `sleeper_handle?`, `submitted_at` (set when 5 picks confirmed), `created_at`. (One row = one account = one lineup.)
 - **picks** — `id`, `entrant_id` FK, `player_id`, `slot` (1–5); `unique(entrant_id, player_id)`.
 - **players** (reference) — `id` (Sleeper id, PK), `full_name`, `team`, `position`, `active`, `search_name`.
-- **player_week_stats** (cache) — `player_id`, `season`, `week`, `rush_td`, `rec_td`, `updated_at`; PK `(player_id, season, week)`.
+- **player_week_stats** (cache) — `player_id`, `season`, `week`, `rush_td`, `rec_td`, `return_td`, `recovery_td`, `updated_at`; PK `(player_id, season, week)`.
 - **leaderboard** (precomputed) — `entrant_id`, `total_td`, `state`, `valid`, `rank`, `computed_at`.
 - **feedback** — `id`, `entrant_id?`, `email?`, `message`, `context` (page/url), `status` (new/triaged/done), `created_at`.
 - **Auth tables** — provided by Auth.js Neon adapter.
@@ -91,7 +91,8 @@ fun single-player **"21 Generator"** practice mode using completed 2025 stats.
 
 ## Open assumptions
 - Player pool = active **QB/RB/WR/TE**.
+- Non-passing TD = rushing + receiving + return + recovery (Sleeper `rush_td + rec_td + st_td + fum_rec_td`).
 - "Each of 5 players ≥1 non-passing TD or invalid" stays a rule.
-- All-bust fallback = lowest total >21 wins.
+- Win condition = **exactly 21**; if nobody hits 21, prizes are raffled (board still shows closest-to-21 ordering).
 - 21 Generator is stateless + replayable.
 - Auth via **Auth.js (NextAuth v5)** + **Google OAuth**.

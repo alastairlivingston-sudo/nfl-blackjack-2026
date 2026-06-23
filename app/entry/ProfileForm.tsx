@@ -4,6 +4,17 @@ import { useActionState } from "react";
 import { Button, Card, CardTitle, CardSubtitle, Input } from "@/design";
 import { saveProfile, type ActionState } from "./actions";
 
+const DEFAULT_JUSTGIVING_URL = "https://www.justgiving.com/page/nflblackjack26";
+
+/** JustGiving's pink heart brand mark, inlined so the donate CTA is self-contained. */
+function JustGivingLogo() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 shrink-0 fill-white">
+      <path d="M12 21s-7.5-4.9-10-9.4C.5 8.7 1.8 5 5.2 5c2 0 3.3 1.1 4.1 2.3.7 1 .7 1 .7 1s0 0 .7-1C11.5 6.1 12.8 5 14.8 5c3.4 0 4.7 3.7 3.2 6.6C19.5 16.1 12 21 12 21z" />
+    </svg>
+  );
+}
+
 export function ProfileForm({
   initial,
   justGivingUrl,
@@ -17,6 +28,7 @@ export function ProfileForm({
   justGivingUrl?: string;
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(saveProfile, {});
+  const donateUrl = justGivingUrl ?? DEFAULT_JUSTGIVING_URL;
 
   return (
     <Card>
@@ -53,27 +65,40 @@ export function ProfileForm({
             defaultChecked={initial?.tagConsent}
             className="h-4 w-4 rounded border-border bg-surface-2"
           />
-          OK to tag my social handle if I win
+          Happy to be tagged in updates
         </label>
+
+        <p className="text-sm text-muted">
+          Follow{" "}
+          <a
+            href="https://x.com/NFLBlackjack"
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-violet-300 hover:text-white"
+          >
+            @NFLBlackjack
+          </a>{" "}
+          on X for updates and prize giveaways.
+        </p>
 
         <div className="rounded-xl border border-border bg-surface-2 p-3">
           <p className="text-sm text-muted">
-            This is a charity game — entry is free, but we hope you&apos;ll chip in.
-            {justGivingUrl ? (
-              <>
-                {" "}
-                <a
-                  href={justGivingUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-semibold text-violet-300 hover:text-white"
-                >
-                  Donate on JustGiving →
-                </a>
-              </>
-            ) : null}
+            This is a free-to-enter charity game — but to be eligible for prizes, donate via
+            JustGiving.
           </p>
-          <label className="mt-2 flex items-center gap-2 text-sm text-muted">
+          <a
+            href={donateUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 inline-flex items-center gap-2 rounded-xl bg-pink-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-pink-500"
+          >
+            <JustGivingLogo />
+            Donate on JustGiving
+          </a>
+          <p className="mt-2 text-sm text-muted">
+            No set amount — pay what you can. We suggest £10 to Petals.
+          </p>
+          <label className="mt-3 flex items-center gap-2 text-sm text-muted">
             <input
               type="checkbox"
               name="donationConfirmed"

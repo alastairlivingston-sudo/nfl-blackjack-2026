@@ -60,7 +60,7 @@ test("boundary: exactly 22 is bust, not blackjack", () => {
   assert.equal(result.state, "bust");
 });
 
-test("rankEntrants: highest valid non-bust total wins", () => {
+test("rankEntrants: only exactly-21 lineups rank when a blackjack exists", () => {
   const now = new Date("2026-09-10T00:00:00Z");
   const ranked = rankEntrants([
     { entrantId: "a", submittedAt: now, scored: scoreLineup(players(5, 5, 5, 3, 2)) }, // 20, short
@@ -68,9 +68,22 @@ test("rankEntrants: highest valid non-bust total wins", () => {
     { entrantId: "c", submittedAt: now, scored: scoreLineup(players(8, 8, 8, 1, 1)) }, // 26, bust
   ]);
   const byId = Object.fromEntries(ranked.map((r) => [r.entrantId, r.rank]));
-  assert.equal(byId.b, 1); // 21 beats 20
-  assert.equal(byId.a, 2);
-  assert.equal(byId.c, null); // bust can't win while a non-bust valid lineup exists
+  assert.equal(byId.b, 1); // exactly 21 wins
+  assert.equal(byId.a, null); // a valid 20 does NOT rank while a 21 exists
+  assert.equal(byId.c, null); // bust never ranks
+});
+
+test("rankEntrants: with no blackjack, closest-to-21 fallback ranks valid lineups", () => {
+  const now = new Date("2026-09-10T00:00:00Z");
+  const ranked = rankEntrants([
+    { entrantId: "lower", submittedAt: now, scored: scoreLineup(players(3, 3, 3, 3, 2)) }, // 14, short
+    { entrantId: "closer", submittedAt: now, scored: scoreLineup(players(5, 5, 5, 3, 2)) }, // 20, short
+    { entrantId: "bust", submittedAt: now, scored: scoreLineup(players(8, 8, 8, 1, 1)) }, // 26, bust
+  ]);
+  const byId = Object.fromEntries(ranked.map((r) => [r.entrantId, r.rank]));
+  assert.equal(byId.closer, 1); // closest to 21 from below leads the board
+  assert.equal(byId.lower, 2);
+  assert.equal(byId.bust, null); // a valid non-bust exists, so the bust is unranked
 });
 
 test("rankEntrants: ties broken by earliest submission", () => {
