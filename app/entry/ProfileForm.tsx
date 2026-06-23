@@ -24,6 +24,7 @@ export function ProfileForm({
     socialHandle: string | null;
     tagConsent: boolean;
     donationConfirmed: boolean;
+    ageConfirmed: boolean;
   };
   justGivingUrl?: string;
 }) {
@@ -83,8 +84,7 @@ export function ProfileForm({
 
         <div className="rounded-xl border border-border bg-surface-2 p-3">
           <p className="text-sm text-muted">
-            This is a free-to-enter charity game — but to be eligible for prizes, donate via
-            JustGiving.
+            We&apos;re raising money for Petals — please chip in via JustGiving if you can.
           </p>
           <a
             href={donateUrl}
@@ -105,9 +105,20 @@ export function ProfileForm({
               defaultChecked={initial?.donationConfirmed}
               className="h-4 w-4 rounded border-border bg-surface-2"
             />
-            I&apos;ve made a donation
+            I&apos;ve donated — optional, just so we can say thanks!
           </label>
         </div>
+
+        <label className="flex items-center gap-2 text-sm text-muted">
+          <input
+            type="checkbox"
+            name="ageConfirmed"
+            defaultChecked={initial?.ageConfirmed}
+            required
+            className="h-4 w-4 rounded border-border bg-surface-2"
+          />
+          I confirm I&apos;m 18 or over
+        </label>
 
         {state.error ? <p className="text-sm text-danger">{state.error}</p> : null}
 

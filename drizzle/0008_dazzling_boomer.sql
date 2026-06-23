@@ -1,0 +1,1 @@
+ALTER TABLE "entrants" ADD COLUMN "age_confirmed" boolean DEFAULT false NOT NULL;

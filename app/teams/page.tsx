@@ -4,7 +4,7 @@ import { Container, Card } from "@/design";
 import { listTeams } from "@/lib/db/queries";
 
 export const metadata: Metadata = {
-  title: "Teams · NFL Blackjack 2026",
+  title: "Teams · Touchdown Blackjack",
 };
 
 export const revalidate = 3600;

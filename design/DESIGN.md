@@ -1,4 +1,4 @@
-# NFL Blackjack 2026 — Design System
+# Touchdown Blackjack — Design System
 
 Dark-only, violet, mobile-first. This `design/` folder is **self-contained and
 extractable**: tokens live in `theme.css`, components in `components/`, and the

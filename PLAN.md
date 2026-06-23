@@ -1,4 +1,4 @@
-# NFL Blackjack 2026 — Build Plan
+# Touchdown Blackjack — Build Plan
 
 ## Context
 We're building a season-long fantasy-style charity game from scratch. Players each pick
@@ -19,7 +19,9 @@ fun single-player **"21 Generator"** practice mode using completed 2025 stats.
 | Player picker | **Typeahead from a prebuilt player list — no fuzzy matching.** Picks stored as exact `player_id`. |
 | Lock & reveal | **Single deadline at Week 1 kickoff.** Editable until then, frozen + publicly revealed after. |
 | Win condition | **Exactly 21 wins.** Among valid lineups, only those totalling exactly 21 win; ties → earliest submission. If nobody hits 21, prizes are **raffled** and the board falls back to closest-to-21 ordering for display only. |
-| Donations | **Not enforced.** External JustGiving link/CTA only; does not affect validity. |
+| Donations | **Optional, never enforced.** JustGiving CTA + a self-attested "I've donated" tracking checkbox; donating **never** gates entry, validity, or prizes. Rules state this plainly (free-draw posture — see Legal posture). |
+| Age | **18+ only.** Entry requires a self-attested "I'm 18 or over" checkbox (`entrants.age_confirmed`), enforced server-side in `saveProfile`. |
+| Legal posture | Run as a **free-to-enter charity prize draw**: no payment is required to enter or win, so it stays outside UK lottery licensing. Branded **"Touchdown Blackjack"** (not "NFL …") with an NFL non-affiliation disclaimer; "NFL" kept only as a factual/nominative reference. Domain/X handle/JustGiving slug are real-world assets to re-point separately. |
 | Feedback | In-app form → stored + emailed digest + admin aggregation view; fixes shipped in a later Claude session. |
 | Design | Built here as a self-contained, extractable layer. Extraction to its own public repo = v2. |
 

@@ -1,5 +1,5 @@
 /**
- * NFL Blackjack 2026 design system — public surface.
+ * Touchdown Blackjack design system — public surface.
  * Import from "@/design" everywhere; never reach into ./components directly.
  */
 export { cn } from "./utils";

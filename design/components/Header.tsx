@@ -16,7 +16,7 @@ export function Header({ right }: { right?: React.ReactNode }) {
             21
           </span>
           <span className="hidden sm:inline">
-            NFL Blackjack <span className="text-violet-300">2026</span>
+            Touchdown <span className="text-violet-300">Blackjack</span>
           </span>
           {/* Beta watermark: this is still under test — keep it visible next to the brand. */}
           <span className="inline-flex items-center rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-warning">

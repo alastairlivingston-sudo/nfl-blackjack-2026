@@ -4,7 +4,7 @@ import { leaderboard2025 } from "@/lib/data/leaderboard2025";
 import { Leaderboard2025 } from "./Leaderboard2025";
 
 export const metadata: Metadata = {
-  title: "Last Year (2025) · NFL Blackjack 2026",
+  title: "Last Year (2025) · Touchdown Blackjack",
 };
 
 export default function LastYearPage() {
@@ -16,8 +16,8 @@ export default function LastYearPage() {
         </p>
         <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Last Year&apos;s Leaderboard</h1>
         <p className="mt-2 text-muted">
-          The final 2025 results. No one landed on exactly 21, so prizes were raffled. Tap any
-          entrant to see their five picks.
+          The final 2025 results. No one landed on exactly 21, so prizes were given away by random
+          draw. Tap any entrant to see their five picks.
         </p>
       </header>
 

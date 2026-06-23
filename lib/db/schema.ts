@@ -38,7 +38,8 @@ export const entrants = pgTable("entrants", {
   displayName: text("display_name").notNull(),
   socialHandle: text("social_handle"),
   tagConsent: boolean("tag_consent").notNull().default(false),
-  donationConfirmed: boolean("donation_confirmed").notNull().default(false), // self-attested; PLAN.md keeps donations unenforced
+  donationConfirmed: boolean("donation_confirmed").notNull().default(false), // self-attested, optional; tracking only — never gates entry or prizes
+  ageConfirmed: boolean("age_confirmed").notNull().default(false), // self-attested 18+, required to enter
   sleeperHandle: text("sleeper_handle"),
   submittedAt: timestamp("submitted_at", { withTimezone: true }), // set once all 5 picks are confirmed
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

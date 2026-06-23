@@ -63,6 +63,7 @@ export default async function EntryPage() {
                 socialHandle: entrant.socialHandle,
                 tagConsent: entrant.tagConsent,
                 donationConfirmed: entrant.donationConfirmed,
+                ageConfirmed: entrant.ageConfirmed,
               }
             : undefined
         }

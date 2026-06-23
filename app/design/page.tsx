@@ -15,7 +15,7 @@ import {
 } from "@/design";
 
 export const metadata: Metadata = {
-  title: "Design system · NFL Blackjack 2026",
+  title: "Design system · Touchdown Blackjack",
 };
 
 const STATES: LineupState[] = ["invalid", "short", "blackjack", "bust"];
