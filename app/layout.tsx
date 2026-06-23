@@ -28,14 +28,17 @@ function NavLinks({ stacked }: { stacked?: boolean }) {
       <Link href="/scoreboard" className={linkClass}>
         Scoreboard
       </Link>
-      <Link href="/teams" className={linkClass}>
-        Teams
+      <Link href="/2025" className={linkClass}>
+        Last Year
+      </Link>
+      <Link href="/rules" className={linkClass}>
+        Rules
+      </Link>
+      <Link href="/feedback" className={linkClass}>
+        Feedback
       </Link>
       <Link href="/play" className={linkClass}>
         21 Generator
-      </Link>
-      <Link href="/2025" className={linkClass}>
-        Last Year
       </Link>
       <Suspense
         fallback={
