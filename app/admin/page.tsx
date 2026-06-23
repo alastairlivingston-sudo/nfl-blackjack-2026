@@ -5,7 +5,6 @@ import { getAdminStats, listFeedback } from "@/lib/db/queries";
 import { isLocked, lockAt } from "@/lib/lock";
 import { Badge, Card, CardTitle, CardSubtitle, Container } from "@/design";
 import { RefreshButton } from "./RefreshButton";
-import { ResetDataButton } from "./ResetDataButton";
 import { FeedbackStatusSelect } from "./FeedbackStatusSelect";
 
 // Matches the cron route's budget — the manual "refresh now" button calls the
@@ -64,17 +63,6 @@ export default async function AdminPage() {
           >
             Download CSV
           </a>
-        </div>
-      </Card>
-
-      <Card>
-        <CardTitle>Danger zone</CardTitle>
-        <CardSubtitle>
-          Permanently deletes every entrant, profile, and pick — use this to wipe test entries
-          before real signups open. Players, stats, and feedback are untouched.
-        </CardSubtitle>
-        <div className="mt-3">
-          <ResetDataButton />
         </div>
       </Card>
 
