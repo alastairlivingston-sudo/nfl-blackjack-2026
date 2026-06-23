@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 function NavLinks({ stacked }: { stacked?: boolean }) {
   const linkClass = stacked
     ? "rounded-lg px-2 py-2 text-sm font-medium text-violet-200 hover:bg-white/10 hover:text-white"
-    : "text-sm font-medium text-violet-200 hover:text-white";
+    : "whitespace-nowrap text-sm font-medium text-violet-200 hover:text-white";
   return (
     <>
       <Link href="/scoreboard" className={linkClass}>
@@ -59,7 +59,7 @@ export default function RootLayout({
         <Header
           right={
             <>
-              <nav className="hidden items-center gap-4 md:flex">
+              <nav className="hidden items-center gap-4 lg:flex">
                 <NavLinks />
               </nav>
               <MobileNav>
