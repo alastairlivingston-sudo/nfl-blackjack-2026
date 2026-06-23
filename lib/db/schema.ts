@@ -24,8 +24,9 @@ export const players = pgTable("players", {
   // Frozen team-as-of the 2025 season (the 21 Generator's PLAY_SEASON). `team`
   // above is overwritten on every live-season re-import, so without this a
   // re-import after any offseason trade silently relabels a player's 2025
-  // production under their new team in /play. Backfilled once via
-  // scripts/backfill-play-team.ts, then never touched by future imports.
+  // production under their new team in /play. Resolved from Sleeper's per-week
+  // 2025 stats (NOT copied from `team`, which is already a 2026-offseason
+  // roster) via scripts/backfill-play-team.ts, then never touched by future imports.
   playTeam: text("play_team"),
 });
 
