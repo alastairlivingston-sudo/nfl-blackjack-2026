@@ -33,8 +33,10 @@ export default function RulesPage() {
           lineup is invalid and can&apos;t win, no matter the total.
         </Rule>
         <Rule title="Winning">
-          Among valid lineups, anyone who gets <span className="font-semibold text-foreground">21</span>{" "}
-          wins. Ties on the leaderboard are broken by whoever submitted their lineup first.
+          You have to land on <span className="font-semibold text-foreground">exactly 21</span> to win
+          — closest-to-21 does not win. Among valid lineups, anyone whose total is exactly 21 wins;
+          anything under (short) or over (bust) cannot. Ties between 21s are broken by whoever
+          submitted their lineup first.
         </Rule>
         <Rule title="If everyone busts or falls short">
           Like in 2025, when no one hit blackjack, prizes are raffled away at the end of the year.

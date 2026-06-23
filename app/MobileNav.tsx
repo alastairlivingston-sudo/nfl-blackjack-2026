@@ -3,17 +3,18 @@
 import { useState } from "react";
 
 /**
- * Below `md`, the full nav (4 links + auth) doesn't fit next to the brand
- * mark and wraps onto a second line inside the fixed-height sticky header.
+ * Below `lg`, the full nav (4 links + auth) doesn't fit next to the brand
+ * mark and wraps onto a second line inside the fixed-height sticky header —
+ * including iPad portrait (768px), which previously tripped the `md` nav.
  * This collapses it into a hamburger + dropdown panel on narrow viewports;
- * `md:hidden` on the toggle and `hidden md:flex` on the inline nav (in
+ * `lg:hidden` on the toggle and `hidden lg:flex` on the inline nav (in
  * layout.tsx) keep this and the always-visible nav mutually exclusive.
  */
 export function MobileNav({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="md:hidden">
+    <div className="lg:hidden">
       <button
         type="button"
         aria-label={open ? "Close menu" : "Open menu"}
