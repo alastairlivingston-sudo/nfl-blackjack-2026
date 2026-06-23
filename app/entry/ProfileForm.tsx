@@ -6,8 +6,8 @@ import { saveProfile, type ActionState } from "./actions";
 
 const DEFAULT_JUSTGIVING_URL = "https://www.justgiving.com/page/nflblackjack26";
 
-/** JustGiving's pink heart brand mark, inlined so the donate CTA is self-contained. */
-function JustGivingLogo() {
+/** Generic heart icon (not JustGiving's official logo) for the donate CTA. */
+function DonateHeartIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 shrink-0 fill-white">
       <path d="M12 21s-7.5-4.9-10-9.4C.5 8.7 1.8 5 5.2 5c2 0 3.3 1.1 4.1 2.3.7 1 .7 1 .7 1s0 0 .7-1C11.5 6.1 12.8 5 14.8 5c3.4 0 4.7 3.7 3.2 6.6C19.5 16.1 12 21 12 21z" />
@@ -85,6 +85,7 @@ export function ProfileForm({
         <div className="rounded-xl border border-border bg-surface-2 p-3">
           <p className="text-sm text-muted">
             We&apos;re raising money for Petals — please chip in via JustGiving if you can.
+            There&apos;s no set amount, so pay what you can; we suggest £10.
           </p>
           <a
             href={donateUrl}
@@ -92,12 +93,9 @@ export function ProfileForm({
             rel="noreferrer"
             className="mt-3 inline-flex items-center gap-2 rounded-xl bg-pink-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-pink-500"
           >
-            <JustGivingLogo />
+            <DonateHeartIcon />
             Donate on JustGiving
           </a>
-          <p className="mt-2 text-sm text-muted">
-            No set amount — pay what you can. We suggest £10 to Petals.
-          </p>
           <label className="mt-3 flex items-center gap-2 text-sm text-muted">
             <input
               type="checkbox"
