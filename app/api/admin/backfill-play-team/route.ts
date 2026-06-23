@@ -6,10 +6,12 @@ import { backfillPlayTeam } from "@/lib/jobs/refresh";
 export const maxDuration = 60;
 
 /**
- * One-off: freezes players.play_team (added by migration 0005) so the 21
- * Generator stops relabelling traded players under their live, re-imported
- * team. Admin-session-gated; idempotent (only touches rows where play_team
- * is still null), so safe to leave — remove once confirmed run.
+ * Repoints players.play_team to each player's real 2025 team (resolved from
+ * Sleeper's weekly stats) so the 21 Generator stops relabelling traded/signed
+ * players under their current, re-imported roster. The 0009 migration applies
+ * this on deploy; this route re-runs the same resolution on demand (e.g. after
+ * a stats correction). Admin-session-gated; overwrites every resolved row, so
+ * re-running is safe and deterministic.
  */
 export async function GET() {
   const session = await auth();

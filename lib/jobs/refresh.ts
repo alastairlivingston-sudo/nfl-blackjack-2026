@@ -3,24 +3,46 @@
  * scripts/compute-leaderboard.ts) and the Vercel Cron route handler
  * (app/api/cron/refresh-stats/route.ts) — one implementation, two callers.
  */
-import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { entrants, picks, players, playerWeekStats, leaderboard } from "../db/schema";
-import { fetchWeekStats } from "../sleeper";
+import { fetchSeasonTeams, fetchWeekStats } from "../sleeper";
+import { PLAY_SEASON } from "../season";
 import { scoreLineup, rankEntrants, type PlayerTotal } from "../scoring/score";
 
 /**
- * Freezes each player's current `team` into `playTeam` wherever it's still
- * null — see lib/db/schema.ts `players.playTeam` for why this needs to exist
- * separately from the live, re-imported `team` column. Idempotent: rows that
- * already have a playTeam are left untouched.
+ * Repoints every player's `playTeam` to the team they actually played for in
+ * the 21 Generator's PLAY_SEASON (2025) — see lib/db/schema.ts `players.playTeam`
+ * for why this exists separately from the live, re-imported `team` column.
+ *
+ * The original backfill copied `team` directly, but that column was imported
+ * during the 2026 offseason, so it already reflected free-agency/trade moves —
+ * freezing it mislabeled players (e.g. Kenneth Walker, a 2025 Seahawk, under
+ * KC). We instead resolve the real 2025 team from Sleeper's weekly stats and
+ * overwrite. The 0009 migration applies this same mapping on deploy; this job
+ * is the re-runnable source (admin route + CLI) for corrections or new seasons.
  */
 export async function backfillPlayTeam(): Promise<number> {
-  const result = await db()
-    .update(players)
-    .set({ playTeam: sql`${players.team}` })
-    .where(isNull(players.playTeam));
-  return result.rowCount ?? 0;
+  const conn = db();
+  const ids = (await conn.select({ id: players.id }).from(players)).map((r) => r.id);
+  if (ids.length === 0) return 0;
+
+  const teams = await fetchSeasonTeams(PLAY_SEASON, ids);
+  if (teams.size === 0) return 0;
+
+  // Single round trip: a VALUES join beats ~700 individual UPDATEs over
+  // neon-http. Cast the bound params to text so Postgres can type the VALUES
+  // columns (untyped bind params in a VALUES list are otherwise ambiguous).
+  const rows = sql.join(
+    [...teams].map(([id, team]) => sql`(${id}::text, ${team}::text)`),
+    sql`, `,
+  );
+  await conn.execute(sql`
+    UPDATE ${players} AS p SET play_team = v.team
+    FROM (VALUES ${rows}) AS v(id, team)
+    WHERE p.id = v.id
+  `);
+  return teams.size;
 }
 
 export async function ingestWeek(season: number, week: number): Promise<number> {

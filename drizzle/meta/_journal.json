@@ -64,6 +64,13 @@
       "when": 1782234705322,
       "tag": "0008_dazzling_boomer",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782234805322,
+      "tag": "0009_fix_play_team_2025",
+      "breakpoints": true
     }
   ]
 }
