@@ -304,6 +304,62 @@ export async function replacePicks(entrantId: string, playerIds: string[]): Prom
     .where(eq(entrants.id, entrantId));
 }
 
+export interface EntrantExportRow {
+  displayName: string;
+  socialHandle: string | null;
+  tagConsent: boolean;
+  donationConfirmed: boolean;
+  submittedAt: Date | null;
+  createdAt: Date;
+  picks: string[]; // player full names, slot order
+}
+
+/**
+ * Full entrant dump for the admin CSV export — display name, social handle,
+ * consent + donation flags, and each lineup's 5 player names. Deliberately
+ * omits email (admin asked to exclude it). One DB round-trip for entrants,
+ * one for picks, stitched in memory so the row order stays by submission.
+ */
+export async function exportEntrants(): Promise<EntrantExportRow[]> {
+  const conn = db();
+
+  const entrantRows = await conn
+    .select({
+      id: entrants.id,
+      displayName: entrants.displayName,
+      socialHandle: entrants.socialHandle,
+      tagConsent: entrants.tagConsent,
+      donationConfirmed: entrants.donationConfirmed,
+      submittedAt: entrants.submittedAt,
+      createdAt: entrants.createdAt,
+    })
+    .from(entrants)
+    .orderBy(asc(entrants.submittedAt), asc(entrants.createdAt));
+
+  const pickRows = await conn
+    .select({ entrantId: picks.entrantId, fullName: players.fullName, slot: picks.slot })
+    .from(picks)
+    .innerJoin(players, eq(players.id, picks.playerId))
+    .orderBy(asc(picks.slot));
+
+  const picksByEntrant = new Map<string, string[]>();
+  for (const p of pickRows) {
+    const list = picksByEntrant.get(p.entrantId) ?? [];
+    list.push(p.fullName);
+    picksByEntrant.set(p.entrantId, list);
+  }
+
+  return entrantRows.map((e) => ({
+    displayName: e.displayName,
+    socialHandle: e.socialHandle,
+    tagConsent: e.tagConsent,
+    donationConfirmed: e.donationConfirmed,
+    submittedAt: e.submittedAt,
+    createdAt: e.createdAt,
+    picks: picksByEntrant.get(e.id) ?? [],
+  }));
+}
+
 export interface AdminStats {
   entrantCount: number;
   submittedCount: number;

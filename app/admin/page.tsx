@@ -52,6 +52,22 @@ export default async function AdminPage() {
       </Card>
 
       <Card>
+        <CardTitle>Export entrants</CardTitle>
+        <CardSubtitle>
+          Downloads a CSV of every entrant — display name, social handle, consent and donation
+          flags, and their 5 picks. Email is not included.
+        </CardSubtitle>
+        <div className="mt-3">
+          <a
+            href="/admin/export"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-surface-2 px-4 text-sm font-semibold text-foreground transition hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            Download CSV
+          </a>
+        </div>
+      </Card>
+
+      <Card>
         <CardTitle>Danger zone</CardTitle>
         <CardSubtitle>
           Permanently deletes every entrant, profile, and pick — use this to wipe test entries
