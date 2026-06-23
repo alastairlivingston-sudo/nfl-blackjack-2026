@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "tsx lib/db/migrate.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "import:players": "tsx scripts/import-players.ts",
@@ -13,7 +13,8 @@
     "db:seed-players": "dotenv -e .env.local -- tsx scripts/seed-players.ts",
     "test": "tsx --test \"lib/**/*.test.ts\"",
     "stats:ingest": "dotenv -e .env.local -- tsx scripts/ingest-stats.ts",
-    "leaderboard:compute": "dotenv -e .env.local -- tsx scripts/compute-leaderboard.ts"
+    "leaderboard:compute": "dotenv -e .env.local -- tsx scripts/compute-leaderboard.ts",
+    "backfill:play-team": "dotenv -e .env.local -- tsx scripts/backfill-play-team.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",

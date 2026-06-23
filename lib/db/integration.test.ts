@@ -59,6 +59,9 @@ import {
   insertFeedback,
   countRecentFeedback,
   getAdminStats,
+  getTeamPlayersBare,
+  listPlayTeams,
+  getPlayersByIds,
 } from "./queries";
 import { computeLeaderboard, ingestWeek } from "../jobs/refresh";
 
@@ -173,4 +176,35 @@ test("AD2: admin stats count profiles vs confirmed lineups", async () => {
   const stats = await getAdminStats();
   assert.ok(stats.entrantCount >= 1);
   assert.equal(stats.submittedCount, 1, "only the one entrant with picks is submitted");
+});
+
+test("PLAY1: a player traded since import stays grouped/labelled under their frozen 2025 team", async () => {
+  // p1 was seeded with team='SF' and play_team is still null (never backfilled).
+  // Simulate the 21 Generator's own page.tsx flow: groups must come from the
+  // play-season team, not the live `team` column re-imported for 2026.
+  let sfRoster = await getTeamPlayersBare("SF");
+  assert.ok(sfRoster.some((p) => p.id === "p1"), "p1 groups under SF before any trade/backfill");
+
+  // A live re-import for the 2026 season trades p1 to KC, but play_team is
+  // never touched by that import (only the backfill script sets it).
+  await client.exec(`update players set team = 'KC' where id = 'p1';`);
+
+  // Without a frozen play_team, p1 would now vanish from SF's /play roster
+  // and silently reappear under KC — the exact "spin a team, get a different
+  // team's players" bug. Backfill freezes today's value.
+  await client.exec(`update players set play_team = 'SF' where id = 'p1' and play_team is null;`);
+
+  sfRoster = await getTeamPlayersBare("SF");
+  assert.ok(sfRoster.some((p) => p.id === "p1"), "p1 still groups under SF after the live trade, via play_team");
+
+  const kcRoster = await getTeamPlayersBare("KC");
+  assert.ok(!kcRoster.some((p) => p.id === "p1"), "p1 does not leak into KC's play roster despite the live trade");
+
+  const teams = await listPlayTeams();
+  assert.ok(teams.includes("SF"), "listPlayTeams reflects the frozen team, not the live one");
+
+  // The reveal screen must show the same team the player was picked under.
+  const [revealed] = await getPlayersByIds(["p1"]);
+  assert.equal(revealed.playTeam, "SF", "reveal team matches the team the player was spun/picked under");
+  assert.equal(revealed.team, "KC", "live `team` column still reflects the real 2026 trade for the live game");
 });

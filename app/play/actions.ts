@@ -36,7 +36,9 @@ export async function revealPlayLineup(playerIds: string[]): Promise<RevealState
     return {
       playerId: id,
       fullName: p.fullName,
-      team: p.team,
+      // Frozen 2025-season team, not the live (re-imported) `team` column —
+      // must match whichever team grouping the player was picked under.
+      team: p.playTeam ?? p.team,
       position: p.position,
       nonPassingTd: totals.get(id) ?? 0,
     };

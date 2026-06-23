@@ -1,5 +1,5 @@
 import { Card, CardTitle, CardSubtitle, Container } from "@/design";
-import { getFinalSeasonTotals, getTeamPlayersBare, listTeams } from "@/lib/db/queries";
+import { getAllPlayTeamRosters, getFinalSeasonTotals } from "@/lib/db/queries";
 import { PLAY_SEASON } from "@/lib/season";
 import { PlayPicker, type TeamSlot } from "./PlayPicker";
 
@@ -18,8 +18,8 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 export default async function PlayPage() {
-  const teams = shuffle(await listTeams());
-  const totals = await getFinalSeasonTotals(PLAY_SEASON);
+  const [rostersByTeam, totals] = await Promise.all([getAllPlayTeamRosters(), getFinalSeasonTotals(PLAY_SEASON)]);
+  const teams = shuffle([...rostersByTeam.keys()]);
 
   // Only players who actually scored a non-passing TD in 2025 are pickable —
   // a guaranteed-zero pick is a dead end, not a real choice. Sort best-first
@@ -27,7 +27,7 @@ export default async function PlayPage() {
   const slots: TeamSlot[] = [];
   for (const team of teams) {
     if (slots.length === 5) break;
-    const roster = (await getTeamPlayersBare(team)).filter((p) => (totals.get(p.id) ?? 0) > 0);
+    const roster = (rostersByTeam.get(team) ?? []).filter((p) => (totals.get(p.id) ?? 0) > 0);
     if (roster.length === 0) continue;
     roster.sort((a, b) => (totals.get(b.id) ?? 0) - (totals.get(a.id) ?? 0));
     slots.push({ team, players: roster });

@@ -1,6 +1,6 @@
 {
-  "id": "0d397417-4769-4123-9a07-79bdf3ba6cf4",
-  "prevId": "5e9eddba-28db-474d-91d9-0638debf4161",
+  "id": "c783dbfd-556b-44b5-b81e-e2092b262103",
+  "prevId": "2f0c1c56-97a3-4069-bbcc-48a8c87179d4",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -466,6 +466,20 @@
         },
         "rec_td": {
           "name": "rec_td",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "return_td": {
+          "name": "return_td",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "recovery_td": {
+          "name": "recovery_td",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
