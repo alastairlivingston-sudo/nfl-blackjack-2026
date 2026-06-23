@@ -14,7 +14,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const row = await getScoreboardRow(id);
-  return { title: row ? `${row.displayName} · NFL Blackjack 2026` : "Entrant · NFL Blackjack 2026" };
+  return { title: row ? `${row.displayName} · Touchdown Blackjack` : "Entrant · Touchdown Blackjack" };
 }
 
 export default async function EntrantPage({ params }: { params: Promise<{ id: string }> }) {

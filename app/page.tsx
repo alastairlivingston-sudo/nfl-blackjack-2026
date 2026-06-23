@@ -68,7 +68,7 @@ export default function Home() {
           <li>• Pick exactly 5 players before Week 1 kicks off.</li>
           <li>• Score = their combined rushing, receiving, return &amp; recovery TDs, weeks 1&ndash;18.</li>
           <li>• Every player must score at least one, or the lineup is invalid.</li>
-          <li>• Hit exactly 21 to win — ties go to the earliest entry. If no one hits 21, prizes are raffled.</li>
+          <li>• Hit exactly 21 to win — ties go to the earliest entry. If no one hits 21, prizes are given away by random draw.</li>
         </ul>
       </Card>
     </Container>

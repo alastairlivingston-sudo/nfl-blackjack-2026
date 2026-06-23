@@ -2,8 +2,9 @@ import Link from "next/link";
 import { Container } from "./Container";
 
 /**
- * Footer hosts the charity CTA. Donations are intentionally NOT enforced by
- * the app (see PLAN.md) — this is just an outbound link.
+ * Footer hosts the charity CTA. Donations are optional and never gate entry or
+ * prizes (see PLAN.md) — this is just an outbound link. Also carries the
+ * NFL non-affiliation disclaimer.
  */
 export function Footer({ justGivingUrl }: { justGivingUrl?: string }) {
   return (
@@ -34,6 +35,11 @@ export function Footer({ justGivingUrl }: { justGivingUrl?: string }) {
             Privacy
           </Link>
         </div>
+        <p className="max-w-prose text-xs text-muted/70">
+          Touchdown Blackjack is an independent charity game, not affiliated with, endorsed by, or
+          sponsored by the National Football League. NFL, team, and player names are trademarks of
+          their respective owners, used for identification only.
+        </p>
       </Container>
     </footer>
   );

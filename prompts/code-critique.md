@@ -1,4 +1,4 @@
-# Code Critique — NFL Blackjack 2026 (production-readiness audit)
+# Code Critique — Touchdown Blackjack (production-readiness audit)
 
 You are a senior engineer doing a **release-blocking audit** of this codebase before it goes
 live to ~1,000 real users in a season-long charity game. The scoreboard is the **source of

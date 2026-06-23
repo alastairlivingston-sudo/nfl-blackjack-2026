@@ -1,5 +1,5 @@
 /* =====================================================================
-   NFL Blackjack 2026 — design tokens (dark-only, violet, oklch)
+   Touchdown Blackjack — design tokens (dark-only, violet, oklch)
    This is the single source of truth for the visual system. Components in
    design/components/ consume these tokens via Tailwind utilities
    (bg-surface, text-muted, border-border, text-success, …).

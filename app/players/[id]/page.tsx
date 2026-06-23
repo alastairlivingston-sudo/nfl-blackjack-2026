@@ -12,7 +12,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const player = await getPlayer(id);
-  return { title: player ? `${player.fullName} · NFL Blackjack 2026` : "Player · NFL Blackjack 2026" };
+  return { title: player ? `${player.fullName} · Touchdown Blackjack` : "Player · Touchdown Blackjack" };
 }
 
 export const revalidate = 60;

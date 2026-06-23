@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Card, CardTitle, CardSubtitle, Container } from "@/design";
 
 export const metadata: Metadata = {
-  title: "Rules · NFL Blackjack 2026",
+  title: "Rules · Touchdown Blackjack",
 };
 
 export default function RulesPage() {
@@ -10,7 +10,7 @@ export default function RulesPage() {
     <Container className="space-y-4 py-8">
       <Card>
         <CardTitle>Rules</CardTitle>
-        <CardSubtitle>How NFL Blackjack 2026 is scored and decided.</CardSubtitle>
+        <CardSubtitle>How Touchdown Blackjack is scored and decided.</CardSubtitle>
       </Card>
 
       <Card className="space-y-4 text-sm text-muted">
@@ -39,7 +39,8 @@ export default function RulesPage() {
           submitted their lineup first.
         </Rule>
         <Rule title="If everyone busts or falls short">
-          Like in 2025, when no one hit blackjack, prizes are raffled away at the end of the year.
+          Like in 2025, when no one hit blackjack, the prizes are given away by random draw at the
+          end of the year.
         </Rule>
         <Rule title="One entry, one email">
           One lineup per email address. You can edit your picks as many times as you like until lock.
@@ -48,9 +49,13 @@ export default function RulesPage() {
           Entries lock the moment Week 1 kicks off. After that, lineups are frozen and revealed
           publicly on the scoreboard.
         </Rule>
-        <Rule title="No donation, no prize">
-          This is a free-to-enter charity game for fun and bragging rights. But to be eligible for
-          prizes you&apos;ll need to donate via our{" "}
+        <Rule title="18 and over">
+          You must be 18 or over to enter.
+        </Rule>
+        <Rule title="Playing for Petals">
+          This is a free-to-enter charity game for fun, bragging rights and of course some prizes
+          too. But the most important thing for us is to raise money so Petals can continue to do the
+          amazing work they do! Please donate via our{" "}
           <a
             href="https://www.justgiving.com/page/nflblackjack26"
             target="_blank"
@@ -59,12 +64,18 @@ export default function RulesPage() {
           >
             JustGiving page
           </a>
-          . There&apos;s no set amount — pay what you can afford; if you&apos;re able, we suggest £10
-          to Petals.
+          . There&apos;s no set amount — pay what you can afford; if you&apos;re able, we suggest a
+          £10 donation. Donating is optional and doesn&apos;t affect your entry or your chance of
+          winning.
         </Rule>
         <Rule title="Player eligibility / corrections">
           We score off third-party NFL stats feeds. If a stat gets corrected upstream after the fact,
           the leaderboard updates to match — we don&apos;t freeze incorrect numbers in place.
+        </Rule>
+        <Rule title="Not affiliated with the NFL">
+          Touchdown Blackjack is an independent charity game, not affiliated with, endorsed by, or
+          sponsored by the National Football League. NFL, team, and player names are trademarks of
+          their respective owners and are used here for identification only.
         </Rule>
       </Card>
     </Container>

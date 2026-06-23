@@ -14,7 +14,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "NFL Blackjack 2026",
+  title: "Touchdown Blackjack",
   description:
     "Pick 5 NFL players. Chase 21 non-passing touchdowns across the 2026 season. Don't bust.",
 };

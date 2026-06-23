@@ -1,5 +1,5 @@
 /**
- * Final 2025 NFL Blackjack leaderboard — historical, hand-entered results.
+ * Final 2025 Touchdown Blackjack leaderboard — historical, hand-entered results.
  * Powers the read-only "Last Year" tab (/2025). Totals and the Y/N validity
  * flag are exactly as published for the 2025 game; player names are kept as
  * submitted (entrants typed their own picks), only trimmed of stray spaces.

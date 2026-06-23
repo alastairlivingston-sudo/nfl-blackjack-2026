@@ -248,6 +248,7 @@ export interface Entrant {
   socialHandle: string | null;
   tagConsent: boolean;
   donationConfirmed: boolean;
+  ageConfirmed: boolean;
   sleeperHandle: string | null;
   submittedAt: Date | null;
 }
@@ -273,6 +274,7 @@ export interface NewEntrantProfile {
   socialHandle?: string | null;
   tagConsent: boolean;
   donationConfirmed: boolean;
+  ageConfirmed: boolean;
   sleeperHandle?: string | null;
 }
 
@@ -288,6 +290,7 @@ export async function upsertEntrantProfile(profile: NewEntrantProfile): Promise<
         socialHandle: profile.socialHandle ?? null,
         tagConsent: profile.tagConsent,
         donationConfirmed: profile.donationConfirmed,
+        ageConfirmed: profile.ageConfirmed,
         sleeperHandle: profile.sleeperHandle ?? null,
       },
     })
@@ -357,6 +360,7 @@ export interface EntrantExportRow {
   socialHandle: string | null;
   tagConsent: boolean;
   donationConfirmed: boolean;
+  ageConfirmed: boolean;
   submittedAt: Date | null;
   createdAt: Date;
   picks: string[]; // player full names, slot order
@@ -380,6 +384,7 @@ export async function exportEntrants(): Promise<EntrantExportRow[]> {
       socialHandle: entrants.socialHandle,
       tagConsent: entrants.tagConsent,
       donationConfirmed: entrants.donationConfirmed,
+      ageConfirmed: entrants.ageConfirmed,
       submittedAt: entrants.submittedAt,
       createdAt: entrants.createdAt,
     })
@@ -405,6 +410,7 @@ export async function exportEntrants(): Promise<EntrantExportRow[]> {
     socialHandle: e.socialHandle,
     tagConsent: e.tagConsent,
     donationConfirmed: e.donationConfirmed,
+    ageConfirmed: e.ageConfirmed,
     submittedAt: e.submittedAt,
     createdAt: e.createdAt,
     picks: picksByEntrant.get(e.id) ?? [],

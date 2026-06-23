@@ -74,7 +74,7 @@ async function seedStat(playerId: string, season: number, week: number, rush: nu
 }
 
 test("E1/E4: entrant + 5-pick lineup persists and sets submittedAt once", async () => {
-  const e = await upsertEntrantProfile({ email: "a@x.com", displayName: "Al", tagConsent: false, donationConfirmed: false });
+  const e = await upsertEntrantProfile({ email: "a@x.com", displayName: "Al", tagConsent: false, donationConfirmed: false, ageConfirmed: true });
   await replacePicks(e.id, ["p1", "p2", "p3", "p4", "p5"]);
   const first = await getEntrantByEmail("a@x.com");
   assert.ok(first?.submittedAt, "submittedAt set on first confirm");
@@ -87,8 +87,8 @@ test("E1/E4: entrant + 5-pick lineup persists and sets submittedAt once", async 
 });
 
 test("F4: one lineup per email regardless of casing", async () => {
-  const e1 = await upsertEntrantProfile({ email: "Case@X.com", displayName: "First", tagConsent: false, donationConfirmed: false });
-  const e2 = await upsertEntrantProfile({ email: "case@x.com", displayName: "Second", tagConsent: false, donationConfirmed: false });
+  const e1 = await upsertEntrantProfile({ email: "Case@X.com", displayName: "First", tagConsent: false, donationConfirmed: false, ageConfirmed: true });
+  const e2 = await upsertEntrantProfile({ email: "case@x.com", displayName: "Second", tagConsent: false, donationConfirmed: false, ageConfirmed: true });
   assert.equal(e1.id, e2.id, "same row reused across casings");
   const found = await getEntrantByEmail("CASE@x.COM");
   assert.equal(found?.displayName, "Second", "lookup is case-insensitive and saw the update");

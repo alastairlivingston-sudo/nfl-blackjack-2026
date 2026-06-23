@@ -4,7 +4,7 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-# NFL Blackjack 2026
+# Touchdown Blackjack
 
 The build contract lives in **`PLAN.md`** (game rules, scoring engine, data model,
 session breakdown). Read it before making product decisions.

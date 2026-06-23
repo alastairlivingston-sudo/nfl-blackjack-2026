@@ -5,7 +5,7 @@ import { getEnteredEntrants, getScoreboard } from "@/lib/db/queries";
 import { isLocked } from "@/lib/lock";
 
 export const metadata: Metadata = {
-  title: "Scoreboard · NFL Blackjack 2026",
+  title: "Scoreboard · Touchdown Blackjack",
 };
 
 // Leaderboard is precomputed by the daily cron; ISR keeps reads off the DB
