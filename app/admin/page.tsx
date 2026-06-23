@@ -54,8 +54,8 @@ export default async function AdminPage() {
       <Card>
         <CardTitle>Export entrants</CardTitle>
         <CardSubtitle>
-          Downloads a CSV of every entrant — display name, social handle, consent and donation
-          flags, and their 5 picks. Email is not included.
+          Downloads a CSV of every entrant with a confirmed lineup — display name, social handle,
+          consent and donation flags, and their 5 picks. Email is not included.
         </CardSubtitle>
         <div className="mt-3">
           <a

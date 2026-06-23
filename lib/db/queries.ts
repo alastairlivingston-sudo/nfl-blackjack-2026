@@ -317,8 +317,10 @@ export interface EntrantExportRow {
 /**
  * Full entrant dump for the admin CSV export — display name, social handle,
  * consent + donation flags, and each lineup's 5 player names. Deliberately
- * omits email (admin asked to exclude it). One DB round-trip for entrants,
- * one for picks, stitched in memory so the row order stays by submission.
+ * omits email (admin asked to exclude it), and only includes entrants with a
+ * confirmed lineup (submittedAt set) — drafts/abandoned profiles are skipped.
+ * One DB round-trip for entrants, one for picks, stitched in memory so the
+ * row order stays by submission.
  */
 export async function exportEntrants(): Promise<EntrantExportRow[]> {
   const conn = db();
@@ -334,6 +336,7 @@ export async function exportEntrants(): Promise<EntrantExportRow[]> {
       createdAt: entrants.createdAt,
     })
     .from(entrants)
+    .where(sql`${entrants.submittedAt} is not null`)
     .orderBy(asc(entrants.submittedAt), asc(entrants.createdAt));
 
   const pickRows = await conn
