@@ -66,7 +66,12 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
               >
                 <span className="font-semibold">Week {w.week}</span>
                 <span className="font-mono text-sm tabular-nums text-muted">
-                  {w.rushTd} rush · {w.recTd} rec
+                  {[
+                    `${w.rushTd} rush`,
+                    `${w.recTd} rec`,
+                    ...(w.returnTd > 0 ? [`${w.returnTd} ret`] : []),
+                    ...(w.recoveryTd > 0 ? [`${w.recoveryTd} rec'v`] : []),
+                  ].join(" · ")}
                 </span>
               </div>
             ))}

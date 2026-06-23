@@ -23,7 +23,7 @@ export default function Home() {
         </h1>
         <p className="mx-auto mt-4 max-w-md text-muted">
           Draft five NFL players and add up their non-passing touchdowns across
-          weeks 1&ndash;18. Land on 21 for blackjack &mdash; go over and you&apos;re out.
+          weeks 1&ndash;18. Hit exactly 21 for blackjack &mdash; go over and you&apos;re out.
         </p>
         <div className="mt-6 flex justify-center gap-3">
           <Link href="/entry">
@@ -66,9 +66,9 @@ export default function Home() {
         <CardTitle>How it works</CardTitle>
         <ul className="mt-3 space-y-2 text-sm text-muted">
           <li>• Pick exactly 5 players before Week 1 kicks off.</li>
-          <li>• Score = their combined rushing + receiving TDs, weeks 1&ndash;18.</li>
+          <li>• Score = their combined rushing, receiving, return &amp; recovery TDs, weeks 1&ndash;18.</li>
           <li>• Every player must score at least one, or the lineup is invalid.</li>
-          <li>• Closest to 21 without going over wins — ties go to the earliest entry.</li>
+          <li>• Hit exactly 21 to win — ties go to the earliest entry. If no one hits 21, prizes are raffled.</li>
         </ul>
       </Card>
     </Container>

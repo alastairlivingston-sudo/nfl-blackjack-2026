@@ -34,6 +34,9 @@ function NavLinks({ stacked }: { stacked?: boolean }) {
       <Link href="/play" className={linkClass}>
         21 Generator
       </Link>
+      <Link href="/2025" className={linkClass}>
+        Last Year
+      </Link>
       <Suspense
         fallback={
           <Link href="/login" className={linkClass}>

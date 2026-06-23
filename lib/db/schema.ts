@@ -55,7 +55,8 @@ export const picks = pgTable(
 
 /**
  * Weekly non-passing TD cache, ingested from Sleeper stats (Session 2).
- * rush_td + rec_td is the scoring unit everywhere downstream.
+ * The scoring unit everywhere downstream is rush_td + rec_td + return_td +
+ * recovery_td (rushing, receiving, kick/punt-return, and fumble-recovery TDs).
  */
 export const playerWeekStats = pgTable(
   "player_week_stats",
@@ -67,6 +68,8 @@ export const playerWeekStats = pgTable(
     week: smallint("week").notNull(),
     rushTd: integer("rush_td").notNull().default(0),
     recTd: integer("rec_td").notNull().default(0),
+    returnTd: integer("return_td").notNull().default(0), // Sleeper st_td (kick/punt return)
+    recoveryTd: integer("recovery_td").notNull().default(0), // Sleeper fum_rec_td
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.playerId, t.season, t.week] })],
