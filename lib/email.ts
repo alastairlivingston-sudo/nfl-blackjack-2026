@@ -8,7 +8,7 @@ export async function sendFeedbackDigest(input: { email: string | null; message:
 
   const resend = new Resend(apiKey);
   await resend.emails.send({
-    from: process.env.AUTH_EMAIL_FROM ?? "Touchdown Blackjack <no-reply@nflblackjack2026.app>",
+    from: process.env.AUTH_EMAIL_FROM ?? "Touchdown Blackjack <no-reply@touchdownblackjack26.app>",
     to,
     subject: "New feedback — Touchdown Blackjack",
     text: [
@@ -40,7 +40,7 @@ export async function sendCronFailureAlert(error: unknown): Promise<void> {
   try {
     const resend = new Resend(apiKey);
     await resend.emails.send({
-      from: process.env.AUTH_EMAIL_FROM ?? "Touchdown Blackjack <no-reply@nflblackjack2026.app>",
+      from: process.env.AUTH_EMAIL_FROM ?? "Touchdown Blackjack <no-reply@touchdownblackjack26.app>",
       to: admins,
       subject: "⚠️ Stats refresh cron failed — Touchdown Blackjack",
       text: `The daily stats refresh job threw:\n\n${error instanceof Error ? error.stack ?? error.message : String(error)}`,

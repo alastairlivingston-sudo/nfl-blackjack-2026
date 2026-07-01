@@ -57,7 +57,7 @@ export default function RulesPage() {
           too. But the most important thing for us is to raise money so Petals can continue to do the
           amazing work they do! Please donate via our{" "}
           <a
-            href="https://www.justgiving.com/page/nflblackjack26"
+            href="https://www.justgiving.com/page/touchdownblackjack26"
             target="_blank"
             rel="noreferrer"
             className="font-semibold text-violet-300 hover:text-white"
