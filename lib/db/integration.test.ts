@@ -63,13 +63,23 @@ import {
   listPlayTeams,
   getPlayersByIds,
 } from "./queries";
-import { computeLeaderboard, ingestWeek } from "../jobs/refresh";
+import { computeLeaderboard, ingestWeek, ingestSeason } from "../jobs/refresh";
 
-async function seedStat(playerId: string, season: number, week: number, rush: number, rec: number) {
+async function seedStat(
+  playerId: string,
+  season: number,
+  week: number,
+  rush: number,
+  rec: number,
+  ret = 0,
+  recovery = 0,
+) {
   await client.exec(
-    `insert into player_week_stats (player_id, season, week, rush_td, rec_td)
-     values ('${playerId}', ${season}, ${week}, ${rush}, ${rec})
-     on conflict (player_id, season, week) do update set rush_td = excluded.rush_td, rec_td = excluded.rec_td;`,
+    `insert into player_week_stats (player_id, season, week, rush_td, rec_td, return_td, recovery_td)
+     values ('${playerId}', ${season}, ${week}, ${rush}, ${rec}, ${ret}, ${recovery})
+     on conflict (player_id, season, week) do update set
+       rush_td = excluded.rush_td, rec_td = excluded.rec_td,
+       return_td = excluded.return_td, recovery_td = excluded.recovery_td;`,
   );
 }
 
@@ -207,4 +217,68 @@ test("PLAY1: a player traded since import stays grouped/labelled under their fro
   const [revealed] = await getPlayersByIds(["p1"]);
   assert.equal(revealed.playTeam, "SF", "reveal team matches the team the player was spun/picked under");
   assert.equal(revealed.team, "KC", "live `team` column still reflects the real 2026 trade for the live game");
+});
+
+test("ST5: totals sum all four non-passing TD categories, not just rush/rec", async () => {
+  await client.exec(`
+    insert into players (id, full_name, team, position, active, search_name) values
+      ('p7','Golf Back','NYJ','RB',true,'golf back'),
+      ('p8','Hotel Wide','MIA','WR',true,'hotel wide'),
+      ('p9','India End','BUF','TE',true,'india end'),
+      ('p10','Juliet Back','LAR','RB',true,'juliet back'),
+      ('p11','Kilo Wide','SEA','WR',true,'kilo wide');
+  `);
+
+  // p7 alone racks up all four categories across two weeks — if any category
+  // were dropped from an aggregation site, this total would come up short.
+  await seedStat("p7", 2026, 2, 2, 0, 0, 0); // rush_td=2
+  await seedStat("p7", 2026, 3, 0, 3, 0, 0); // rec_td=3
+  await seedStat("p7", 2026, 4, 0, 0, 1, 0); // return_td=1 (Sleeper st_td)
+  await seedStat("p7", 2026, 5, 0, 0, 0, 1); // recovery_td=1 (Sleeper fum_rec_td)
+  await seedStat("p8", 2026, 2, 0, 5, 0, 0);
+  await seedStat("p9", 2026, 2, 0, 4, 0, 0);
+  await seedStat("p10", 2026, 2, 3, 0, 0, 0);
+  await seedStat("p11", 2026, 2, 0, 3, 0, 0); // 5+4+3+3=15, plus p7's 7 => 22 total (bust)
+
+  const e = await upsertEntrantProfile({
+    email: "st5@x.com",
+    displayName: "St5",
+    tagConsent: false,
+    donationConfirmed: false,
+    ageConfirmed: true,
+  });
+  await replacePicks(e.id, ["p7", "p8", "p9", "p10", "p11"]);
+
+  const player = await getPlayer("p7");
+  assert.equal(player?.seasonTotal, 7, "rush + rec + return + recovery all counted for one player");
+
+  await computeLeaderboard(2026);
+  const lineup = await getLineup(e.id);
+  const p7Row = lineup.find((p) => p.playerId === "p7");
+  assert.equal(p7Row?.nonPassingTd, 7, "getLineup also sums all four categories");
+
+  const board = await getScoreboard();
+  const entry = board.find((b) => b.entrantId === e.id);
+  assert.equal(entry?.totalTd, 22, "leaderboard total reflects every category, not just rush/rec");
+  assert.equal(entry?.state, "bust");
+});
+
+test("ST6: ingestSeason's default week range covers exactly weeks 1-18, no more no less", async () => {
+  const realFetch = globalThis.fetch;
+  const requestedWeeks: number[] = [];
+  globalThis.fetch = async (url: RequestInfo | URL) => {
+    const match = String(url).match(/\/stats\/nfl\/regular\/\d+\/(\d+)$/);
+    if (match) requestedWeeks.push(Number(match[1]));
+    return new Response(JSON.stringify({}), { status: 200 }); // no scoring players
+  };
+  try {
+    await ingestSeason(2097);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  assert.deepEqual(
+    requestedWeeks,
+    Array.from({ length: 18 }, (_, i) => i + 1),
+    "a full-season refresh hits every week 1-18 in order, so a corrected earlier week is never skipped",
+  );
 });

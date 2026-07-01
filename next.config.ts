@@ -1,5 +1,13 @@
 import type { NextConfig } from "next";
 
+/**
+ * Unique per deploy so open tabs can detect a new version has shipped (see
+ * app/api/version/route.ts + app/StaleBuildBanner.tsx). Vercel sets the commit
+ * SHA on every deploy; fall back to a timestamp so local dev still gets a
+ * distinct value across restarts.
+ */
+const buildId = process.env.VERCEL_GIT_COMMIT_SHA ?? String(Date.now());
+
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -20,6 +28,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  env: { NEXT_PUBLIC_BUILD_ID: buildId },
   outputFileTracingIncludes: { "/api/admin/migrate": ["./drizzle/**"] },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

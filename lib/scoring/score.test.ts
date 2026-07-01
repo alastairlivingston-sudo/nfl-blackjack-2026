@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { scoreLineup, rankEntrants, type PlayerTotal } from "./score";
+import { scoreLineup, rankEntrants, LINEUP_STATES, type PlayerTotal } from "./score";
+import { STATE_STYLES } from "@/design";
 
 function players(...tds: number[]): PlayerTotal[] {
   return tds.map((nonPassingTd, i) => ({ playerId: `p${i}`, nonPassingTd }));
@@ -58,6 +59,30 @@ test("boundary: exactly 22 is bust, not blackjack", () => {
   const result = scoreLineup(players(6, 6, 6, 3, 1));
   assert.equal(result.totalTd, 22);
   assert.equal(result.state, "bust");
+});
+
+test("bust: large totals still bust rather than overflowing/misclassifying", () => {
+  const result = scoreLineup(players(100, 20, 10, 5, 1));
+  assert.equal(result.totalTd, 136);
+  assert.equal(result.state, "bust");
+  assert.equal(result.valid, true);
+});
+
+test("every LineupState has a canonical colour mapping (AGENTS.md: invalid->neutral, short->warning, blackjack->success, bust->danger)", () => {
+  const expectedToken: Record<string, string> = {
+    invalid: "neutral",
+    short: "warning",
+    blackjack: "success",
+    bust: "danger",
+  };
+  for (const state of LINEUP_STATES) {
+    const style = STATE_STYLES[state];
+    assert.ok(style, `STATE_STYLES is missing an entry for "${state}"`);
+    assert.ok(
+      style.className.includes(expectedToken[state]),
+      `${state} should use the "${expectedToken[state]}" token, got "${style.className}"`,
+    );
+  }
 });
 
 test("rankEntrants: only exactly-21 lineups rank when a blackjack exists", () => {
