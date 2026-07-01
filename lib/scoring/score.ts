@@ -6,6 +6,9 @@
 
 export type LineupState = "invalid" | "short" | "blackjack" | "bust";
 
+/** Every possible LineupState, for exhaustiveness checks (e.g. the state->colour mapping in design/components/StatePill.tsx). */
+export const LINEUP_STATES: readonly LineupState[] = ["invalid", "short", "blackjack", "bust"];
+
 export const BLACKJACK_TARGET = 21;
 
 /** Non-passing TDs for one player, summed across the season so far. */

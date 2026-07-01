@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { Button, Card, CardTitle, CardSubtitle, Input } from "@/design";
 import { saveProfile, type ActionState } from "./actions";
 
-const DEFAULT_JUSTGIVING_URL = "https://www.justgiving.com/page/nflblackjack26";
+const DEFAULT_JUSTGIVING_URL = "https://www.justgiving.com/page/touchdownblackjack26";
 
 /** Generic heart icon (not JustGiving's official logo) for the donate CTA. */
 function DonateHeartIcon() {
@@ -72,12 +72,12 @@ export function ProfileForm({
         <p className="text-sm text-muted">
           Follow{" "}
           <a
-            href="https://x.com/NFLBlackjack"
+            href="https://x.com/TD_Blackjack"
             target="_blank"
             rel="noreferrer"
             className="font-semibold text-violet-300 hover:text-white"
           >
-            @NFLBlackjack
+            @TD_Blackjack
           </a>{" "}
           on X for updates and prize giveaways.
         </p>

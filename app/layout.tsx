@@ -6,6 +6,7 @@ import "./globals.css";
 import { Header, Footer } from "@/design";
 import { AuthNav } from "./AuthNav";
 import { MobileNav } from "./MobileNav";
+import { StaleBuildBanner } from "./StaleBuildBanner";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -59,6 +60,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${manrope.variable} h-full`}>
       <body className="flex min-h-full flex-col bg-background text-foreground antialiased">
+        <StaleBuildBanner />
         <Header
           right={
             <>

@@ -9,7 +9,7 @@ export { Footer } from "./components/Footer";
 export { Card, CardTitle, CardSubtitle } from "./components/Card";
 export { Button } from "./components/Button";
 export { Badge, PositionBadge } from "./components/Badge";
-export { StatePill, type LineupState } from "./components/StatePill";
+export { StatePill, STATE_STYLES, type LineupState } from "./components/StatePill";
 export { ScoreMeter } from "./components/ScoreMeter";
 export { Input } from "./components/Input";
 export { PlayerRow } from "./components/PlayerRow";
