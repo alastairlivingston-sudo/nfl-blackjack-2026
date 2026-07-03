@@ -1,41 +1,23 @@
-import Link from "next/link";
+import { Suspense } from "react";
 import {
   Container,
   Card,
   CardTitle,
   CardSubtitle,
-  Button,
   PlayerRow,
   ScoreMeter,
   StatePill,
 } from "@/design";
+import { HomeHero, SignedOutHero } from "./HomeHero";
 
 export default function Home() {
   return (
     <Container className="py-8">
-      {/* Hero */}
-      <section className="text-center">
-        <p className="text-sm font-semibold uppercase tracking-widest text-violet-300">
-          2026 Season
-        </p>
-        <h1 className="mt-2 text-4xl font-extrabold tracking-tight sm:text-5xl">
-          Pick 5. Chase <span className="text-violet-300">21</span>. Don&apos;t bust.
-        </h1>
-        <p className="mx-auto mt-4 max-w-md text-muted">
-          Draft five NFL players and add up their non-passing touchdowns across
-          weeks 1&ndash;18. Hit exactly 21 for blackjack &mdash; go over and you&apos;re out.
-        </p>
-        <div className="mt-6 flex justify-center gap-3">
-          <Link href="/entry">
-            <Button size="lg">Sign up &amp; enter</Button>
-          </Link>
-          <Link href="/scoreboard">
-            <Button size="lg" variant="secondary">
-              View scoreboard
-            </Button>
-          </Link>
-        </div>
-      </section>
+      {/* Hero — personalized for signed-in users, streamed in over the static
+          marketing fallback so the page still paints instantly. */}
+      <Suspense fallback={<SignedOutHero />}>
+        <HomeHero />
+      </Suspense>
 
       {/* Example scored lineup — showcases the components */}
       <Card className="mt-10">
