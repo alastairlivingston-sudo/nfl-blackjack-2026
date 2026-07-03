@@ -163,9 +163,13 @@ export async function importSeasonScorers(season: number, weeks: number[] = rang
  * stats and upserts it into player_season_team — the per-season analogue of
  * backfillPlayTeam. Additive: only writes the requested season's rows.
  */
-export async function resolveSeasonTeams(season: number, ids: string[]): Promise<number> {
+export async function resolveSeasonTeams(
+  season: number,
+  ids: string[],
+  weeks?: number[],
+): Promise<number> {
   if (ids.length === 0) return 0;
-  const teams = await fetchSeasonTeams(season, ids);
+  const teams = await fetchSeasonTeams(season, ids, weeks);
   if (teams.size === 0) return 0;
 
   await db()
@@ -188,10 +192,14 @@ export async function resolveSeasonTeams(season: number, ids: string[]): Promise
  */
 export async function ingestHistoricalSeason(
   season: number,
+  opts: { teamWeeks?: number[] } = {},
 ): Promise<{ players: number; teams: number }> {
   const ids = await importSeasonScorers(season);
   await ingestSeason(season);
-  const teams = await resolveSeasonTeams(season, ids);
+  // The admin "load season" button runs on a 60s serverless budget, so it can
+  // pass a reduced week set for the (slow) per-week team resolution; the CLI
+  // leaves it full for maximum trade-labelling accuracy.
+  const teams = await resolveSeasonTeams(season, ids, opts.teamWeeks);
   return { players: ids.length, teams };
 }
 

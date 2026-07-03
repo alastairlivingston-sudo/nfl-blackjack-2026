@@ -4,9 +4,9 @@
  * table — never raw picks/stats — so it stays cheap under concurrent load
  * (see PLAN.md "Scalability for ~1,000 users").
  */
-import { and, asc, desc, eq, gt, gte, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lt, or, sql } from "drizzle-orm";
 import { db } from "./client";
-import { entrants, feedback, leaderboard, loginAttempts, picks, players, playerWeekStats, playerSeasonTeam } from "./schema";
+import { entrants, feedback, generatorScores, leaderboard, loginAttempts, picks, players, playerWeekStats, playerSeasonTeam } from "./schema";
 import { currentSeason } from "../season";
 
 export interface ScoreboardRow {
@@ -294,6 +294,47 @@ export async function getSeasonTeams(season: number, ids: string[]): Promise<Map
     .from(playerSeasonTeam)
     .where(and(eq(playerSeasonTeam.season, season), inArray(playerSeasonTeam.playerId, ids)));
   return new Map(rows.map((r) => [r.playerId, r.team]));
+}
+
+export interface GeneratorScoreRow {
+  id: string;
+  name: string;
+  mode: string;
+  durationMs: number;
+  createdAt: Date;
+}
+
+/** Record a completed exactly-21 run for the generator hall of fame. */
+export async function insertGeneratorScore(input: {
+  name: string;
+  mode: string;
+  durationMs: number;
+}): Promise<void> {
+  await db().insert(generatorScores).values({
+    id: crypto.randomUUID(),
+    name: input.name,
+    mode: input.mode,
+    durationMs: input.durationMs,
+  });
+}
+
+/** Fastest exactly-21 runs for one mode, quickest first (ties broken by who got there first). */
+export async function getGeneratorLeaderboard(mode: string, limit = 25): Promise<GeneratorScoreRow[]> {
+  return db()
+    .select()
+    .from(generatorScores)
+    .where(eq(generatorScores.mode, mode))
+    .orderBy(asc(generatorScores.durationMs), asc(generatorScores.createdAt))
+    .limit(limit);
+}
+
+/** How many recorded runs in `mode` are strictly faster — so a just-submitted run knows its rank (0 = new #1). */
+export async function countFasterGeneratorScores(mode: string, durationMs: number): Promise<number> {
+  const [row] = await db()
+    .select({ n: sql<number>`count(*)` })
+    .from(generatorScores)
+    .where(and(eq(generatorScores.mode, mode), lt(generatorScores.durationMs, durationMs)));
+  return Number(row?.n ?? 0);
 }
 
 export interface Entrant {

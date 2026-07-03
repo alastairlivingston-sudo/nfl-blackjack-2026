@@ -65,6 +65,9 @@ import {
   listPlaySeasons,
   getSeasonRosters,
   getSeasonTeams,
+  insertGeneratorScore,
+  getGeneratorLeaderboard,
+  countFasterGeneratorScores,
 } from "./queries";
 import {
   computeLeaderboard,
@@ -386,4 +389,25 @@ test("MY2: ingestHistoricalSeason additively imports retired scorers, FK-safe, r
   const rosters = await getSeasonRosters(2088);
   assert.deepEqual((rosters.get("DEN") ?? []).map((p) => p.id).sort(), ["h1", "h2"]);
   assert.deepEqual((rosters.get("SF") ?? []).map((p) => p.id), ["p1"]);
+});
+
+test("MY3: generator leaderboard ranks by speed and is isolated per mode", async () => {
+  await insertGeneratorScore({ name: "Slow", mode: "easy", durationMs: 30000 });
+  await insertGeneratorScore({ name: "Fast", mode: "easy", durationMs: 12000 });
+  await insertGeneratorScore({ name: "Mid", mode: "easy", durationMs: 20000 });
+  await insertGeneratorScore({ name: "HardOnly", mode: "hard", durationMs: 5000 });
+
+  const easy = await getGeneratorLeaderboard("easy");
+  assert.deepEqual(
+    easy.map((r) => r.name),
+    ["Fast", "Mid", "Slow"],
+    "fastest first, and the hard-mode run doesn't leak into easy",
+  );
+
+  const hard = await getGeneratorLeaderboard("hard");
+  assert.deepEqual(hard.map((r) => r.name), ["HardOnly"]);
+
+  // A 15s run would sit behind only the 12s run -> rank 2.
+  assert.equal(await countFasterGeneratorScores("easy", 15000), 1, "one easy run is strictly faster than 15s");
+  assert.equal(await countFasterGeneratorScores("easy", 10000), 0, "nothing faster than 10s -> would be #1");
 });

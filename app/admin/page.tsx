@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { isAdminEmail } from "@/lib/admin";
-import { getAdminStats, listFeedback } from "@/lib/db/queries";
+import { getAdminStats, listFeedback, listPlaySeasons } from "@/lib/db/queries";
 import { isLocked, lockAt } from "@/lib/lock";
+import { PLAY_SEASON, PLAY_SEASON_MIN } from "@/lib/season";
 import { Badge, Card, CardTitle, CardSubtitle, Container } from "@/design";
 import { RefreshButton } from "./RefreshButton";
+import { HistoryBackfill } from "./HistoryBackfill";
 import { FeedbackStatusSelect } from "./FeedbackStatusSelect";
 
 // Matches the cron route's budget — the manual "refresh now" button calls the
@@ -20,6 +22,13 @@ export default async function AdminPage() {
   const locked = isLocked();
   const lockTime = lockAt();
   const feedbackRows = await listFeedback();
+
+  // Past seasons the 21 Generator can offer, and which are already loaded.
+  const pastSeasons = Array.from(
+    { length: PLAY_SEASON - PLAY_SEASON_MIN },
+    (_, i) => PLAY_SEASON_MIN + i,
+  );
+  const loadedSeasons = (await listPlaySeasons()).filter((s) => s < PLAY_SEASON);
 
   return (
     <Container className="space-y-4 py-8">
@@ -47,6 +56,18 @@ export default async function AdminPage() {
         <CardSubtitle>Pulls the latest Sleeper stats and recomputes the leaderboard now.</CardSubtitle>
         <div className="mt-3">
           <RefreshButton />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>21 Generator — past seasons</CardTitle>
+        <CardSubtitle>
+          Load a completed season so the 21 Generator can offer it (imports that year&apos;s scorers,
+          non-passing TDs and per-season teams from Sleeper). One season per click; already-loaded
+          seasons show a ✓. Safe to re-run.
+        </CardSubtitle>
+        <div className="mt-3">
+          <HistoryBackfill seasons={pastSeasons} loadedInitial={loadedSeasons} />
         </div>
       </Card>
 
