@@ -105,6 +105,20 @@ export const playerSeasonTeam = pgTable(
 );
 
 /**
+ * Hall of fame for the 21 Generator: anyone who lands exactly 21 can add their
+ * run, ranked by how fast they got there (lower `durationMs` = better).
+ * Separate boards for easy vs hard mode. Stateless/no-accounts like the rest of
+ * the generator, so `name` is a free-text handle, not an entrant link.
+ */
+export const generatorScores = pgTable("generator_scores", {
+  id: text("id").primaryKey(), // cuid/uuid
+  name: text("name").notNull(),
+  mode: text("mode").notNull(), // easy | hard
+  durationMs: integer("duration_ms").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
  * Precomputed scoreboard (Session 2 cron writes this; reads never hit raw
  * picks/stats so 1,000 concurrent viewers hit cache, not live joins).
  */

@@ -3,10 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { isAdminEmail } from "@/lib/admin";
-import { ingestSeason, computeLeaderboard } from "@/lib/jobs/refresh";
+import { ingestSeason, ingestHistoricalSeason, computeLeaderboard } from "@/lib/jobs/refresh";
 import { sendCronFailureAlert } from "@/lib/email";
 import { setFeedbackStatus, type FeedbackStatus } from "@/lib/db/queries";
-import { currentSeason } from "@/lib/season";
+import { currentSeason, PLAY_SEASON, PLAY_SEASON_MIN } from "@/lib/season";
 
 export interface RefreshState {
   error?: string;
@@ -26,6 +26,38 @@ export async function updateFeedbackStatus(id: string, status: FeedbackStatus): 
   console.log(`[admin] ${admin} set feedback ${id} -> ${status}`);
   await setFeedbackStatus(id, status);
   revalidatePath("/admin");
+}
+
+export interface IngestSeasonState {
+  error?: string;
+  season?: number;
+  players?: number;
+  teams?: number;
+}
+
+/**
+ * Loads one completed season into the multi-year 21 Generator (see PLAN.md
+ * Session 9). Runs on the page's 60s budget, so it resolves per-season teams
+ * over a reduced week set to stay within it; it's idempotent, so if a big
+ * season times out, clicking again resumes and completes.
+ */
+export async function ingestPastSeason(season: number): Promise<IngestSeasonState> {
+  const admin = await requireAdmin();
+  if (!Number.isInteger(season) || season < PLAY_SEASON_MIN || season >= PLAY_SEASON) {
+    return { error: `Season must be ${PLAY_SEASON_MIN}–${PLAY_SEASON - 1}.` };
+  }
+  console.log(`[admin] ${admin} loading 21 Generator season ${season}`);
+  try {
+    const { players, teams } = await ingestHistoricalSeason(season, {
+      teamWeeks: [2, 5, 8, 11, 14, 17],
+    });
+    revalidatePath("/play");
+    revalidatePath("/admin");
+    return { season, players, teams };
+  } catch (err) {
+    console.error(`Season ${season} backfill failed`, err);
+    return { error: "Load failed — it may have timed out; click again to resume." };
+  }
 }
 
 export async function refreshNow(): Promise<RefreshState> {

@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, Card, CardTitle, CardSubtitle, PlayerRow, ScoreMeter, StatePill } from "@/design";
+import { Button, Card, CardTitle, CardSubtitle, Input, PlayerRow, ScoreMeter, StatePill } from "@/design";
 import {
   revealPlayLineup,
-  revealPick,
   rollBoard,
   rollTeam,
   rollYear,
+  submitGeneratorScore,
   type PlaySlot,
   type RevealState,
   type SeasonPick,
@@ -20,7 +21,6 @@ interface Pick {
   playerId: string;
   season: number;
   team: string;
-  total?: number; // easy mode only, filled after the pick
 }
 
 const SPIN_TEAMS = [
@@ -28,6 +28,14 @@ const SPIN_TEAMS = [
   "JAX", "TEN", "DEN", "KC", "LAC", "LV", "DAL", "NYG", "PHI", "WAS",
   "CHI", "DET", "GB", "MIN", "ATL", "CAR", "NO", "TB", "ARI", "LAR", "SF", "SEA",
 ];
+
+function formatTime(ms: number): string {
+  const totalSeconds = ms / 1000;
+  if (totalSeconds < 60) return `${totalSeconds.toFixed(1)}s`;
+  const m = Math.floor(totalSeconds / 60);
+  const s = Math.round(totalSeconds % 60);
+  return `${m}m ${String(s).padStart(2, "0")}s`;
+}
 
 export function PlayPicker({
   seasons,
@@ -39,7 +47,7 @@ export function PlayPicker({
   initialSlots: PlaySlot[];
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("hard");
+  const [mode, setMode] = useState<Mode>("easy");
   const [season, setSeason] = useState(initialSeason);
   const [slots, setSlots] = useState<PlaySlot[]>(initialSlots);
   const [step, setStep] = useState(0);
@@ -52,15 +60,15 @@ export function PlayPicker({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<RevealState | null>(null);
   const [pending, setPending] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const spinTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startedAt = useRef<number | null>(null);
 
   useEffect(() => () => {
     if (spinTimer.current) clearInterval(spinTimer.current);
   }, []);
 
   const current = slots[step];
-  const allPicked = slots.length > 0 && slots.every((_, i) => picks[i]);
-  const runningTotal = Object.values(picks).reduce((sum, p) => sum + (p.total ?? 0), 0);
   const canYearRespin = mode === "easy" && !yearUsed && seasons.length > 1;
   const canTeamRespin = mode === "easy" && !teamUsed;
 
@@ -75,6 +83,8 @@ export function PlayPicker({
     setYearUsed(false);
     setTeamUsed(false);
     setResult(null);
+    setElapsedMs(0);
+    startedAt.current = null;
   }
 
   async function changeSeason(next: number) {
@@ -87,6 +97,7 @@ export function PlayPicker({
 
   function spin() {
     if (!current) return;
+    if (startedAt.current === null) startedAt.current = performance.now(); // clock starts on the first spin
     setStatus("spinning");
     let ticks = 0;
     spinTimer.current = setInterval(() => {
@@ -100,11 +111,10 @@ export function PlayPicker({
     }, 80);
   }
 
-  async function choose(playerId: string) {
+  function choose(playerId: string) {
     if (!current) return;
-    let total: number | undefined;
-    if (mode === "easy") total = await revealPick(current.season, playerId);
-    setPicks((prev) => ({ ...prev, [step]: { playerId, season: current.season, team: current.team, total } }));
+    const nextPicks = { ...picks, [step]: { playerId, season: current.season, team: current.team } };
+    setPicks(nextPicks);
     setJustPicked(playerId);
     setTimeout(() => {
       setJustPicked(null);
@@ -112,15 +122,40 @@ export function PlayPicker({
         setStep((s) => s + 1);
         setStatus("pending");
         setSpinLabel(SPIN_TEAMS[0]);
+      } else {
+        // Fifth (final) pick — reveal immediately, no separate button.
+        void reveal(nextPicks);
       }
     }, 450);
+  }
+
+  async function reveal(finalPicks: Record<number, Pick>) {
+    setPending(true);
+    // Only ever reached from the pick handler, never during render.
+    // eslint-disable-next-line react-hooks/purity
+    const durationMs = startedAt.current !== null ? Math.round(performance.now() - startedAt.current) : 0;
+    const lineup: SeasonPick[] = slots.map((_, i) => ({
+      season: finalPicks[i].season,
+      playerId: finalPicks[i].playerId,
+    }));
+    const res = await revealPlayLineup(lineup);
+    setElapsedMs(durationMs);
+    setResult(res);
+    setPending(false);
+    if (res.scored?.state === "blackjack") {
+      const confetti = (await import("canvas-confetti")).default;
+      confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 }, colors: ["#a78bfa", "#818cf8", "#34d399"] });
+      setTimeout(
+        () => confetti({ particleCount: 80, spread: 100, origin: { y: 0.5 }, colors: ["#a78bfa", "#818cf8"] }),
+        300,
+      );
+    }
   }
 
   async function respinTeam() {
     if (!current || busy) return;
     setBusy(true);
-    const exclude = slots.map((s) => s.team);
-    const slot = await rollTeam(current.season, exclude);
+    const slot = await rollTeam(current.season, slots.map((s) => s.team));
     setBusy(false);
     if (!slot) return;
     setTeamUsed(true);
@@ -155,54 +190,14 @@ export function PlayPicker({
     router.refresh();
   }
 
-  async function handleReveal() {
-    setResult(null);
-    setPending(true);
-    const lineup: SeasonPick[] = slots.map((_, i) => ({
-      season: picks[i].season,
-      playerId: picks[i].playerId,
-    }));
-    const res = await revealPlayLineup(lineup);
-    setResult(res);
-    setPending(false);
-    if (res.scored?.state === "blackjack") {
-      const confetti = (await import("canvas-confetti")).default;
-      confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 }, colors: ["#a78bfa", "#818cf8", "#34d399"] });
-      setTimeout(
-        () => confetti({ particleCount: 80, spread: 100, origin: { y: 0.5 }, colors: ["#a78bfa", "#818cf8"] }),
-        300,
-      );
-    }
-  }
-
   if (result?.players && result.scored) {
     return (
-      <Card className="animate-pop-in">
-        <CardTitle>Reveal</CardTitle>
-        <CardSubtitle>Final non-passing TDs.</CardSubtitle>
-
-        <div className="mt-4 space-y-2">
-          {result.players.map((p, i) => (
-            <div key={p.playerId} className="animate-stagger-in" style={{ animationDelay: `${i * 90}ms` }}>
-              <PlayerRow
-                name={p.fullName}
-                team={`${p.team ?? "FA"} · ${p.season}`}
-                position={p.position}
-                trailing={<span className="font-semibold">{p.nonPassingTd} TD</span>}
-              />
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-4 flex items-center justify-between">
-          <ScoreMeter total={result.scored.totalTd} state={result.scored.state} />
-          <StatePill state={result.scored.state} />
-        </div>
-
-        <Button className="mt-4" variant="secondary" onClick={playAgain}>
-          Play again
-        </Button>
-      </Card>
+      <RevealCard
+        result={result}
+        mode={mode}
+        elapsedMs={elapsedMs}
+        onPlayAgain={playAgain}
+      />
     );
   }
 
@@ -214,15 +209,8 @@ export function PlayPicker({
         mode={mode}
         busy={busy}
         onSeason={changeSeason}
-        onMode={(m) => setMode(m)}
+        onMode={setMode}
       />
-
-      {mode === "easy" && Object.keys(picks).length > 0 ? (
-        <div className="flex items-center justify-between rounded-xl border border-border bg-surface-2 px-4 py-2 text-sm">
-          <span className="text-muted">Running total</span>
-          <span className="font-mono font-bold tabular-nums text-foreground">{runningTotal} TD</span>
-        </div>
-      ) : null}
 
       <Progress slots={slots} picks={picks} step={step} />
 
@@ -241,7 +229,7 @@ export function PlayPicker({
         {status === "pending" ? (
           <div className="mt-4 flex flex-col items-center gap-3 py-6">
             <p className="text-sm text-muted">Spin to find out who you&apos;re picking from.</p>
-            <Button size="lg" onClick={spin} disabled={busy || !current}>
+            <Button size="lg" onClick={spin} disabled={busy || pending || !current}>
               🎲 Spin
             </Button>
           </div>
@@ -264,7 +252,7 @@ export function PlayPicker({
                 <button
                   key={p.id}
                   type="button"
-                  disabled={justPicked !== null || busy}
+                  disabled={justPicked !== null || busy || pending}
                   className="block w-full animate-stagger-in text-left disabled:pointer-events-none"
                   style={{ animationDelay: `${i * 60}ms` }}
                   onClick={() => choose(p.id)}
@@ -274,13 +262,7 @@ export function PlayPicker({
                     team={current.team}
                     position={p.position}
                     className={picked ? `border-primary ${popping ? "animate-check-pop" : ""}` : "transition hover:border-primary/60"}
-                    trailing={
-                      picked ? (
-                        <span className="text-primary">
-                          {picks[step]?.total !== undefined ? `${picks[step]!.total} TD` : "✓"}
-                        </span>
-                      ) : undefined
-                    }
+                    trailing={picked ? <span className="text-primary">✓</span> : undefined}
                   />
                 </button>
               );
@@ -289,12 +271,12 @@ export function PlayPicker({
             {canTeamRespin || canYearRespin ? (
               <div className="flex flex-wrap gap-2 pt-2">
                 {canTeamRespin ? (
-                  <Button variant="secondary" onClick={respinTeam} disabled={busy}>
+                  <Button variant="secondary" onClick={respinTeam} disabled={busy || pending}>
                     ↻ Respin team
                   </Button>
                 ) : null}
                 {canYearRespin ? (
-                  <Button variant="secondary" onClick={respinYear} disabled={busy}>
+                  <Button variant="secondary" onClick={respinYear} disabled={busy || pending}>
                     ↻ Respin year
                   </Button>
                 ) : null}
@@ -304,22 +286,112 @@ export function PlayPicker({
         ) : null}
       </Card>
 
+      {pending ? <p className="text-center text-sm text-muted">Revealing…</p> : null}
       {result?.error ? <p className="text-sm text-danger">{result.error}</p> : null}
 
-      {allPicked ? (
-        // Sticky so the reveal is in reach the moment the 5th pick lands.
-        <div className="sticky bottom-4 z-30">
-          <Button
-            className="w-full animate-pop-in shadow-lg shadow-black/40"
-            size="lg"
-            disabled={pending}
-            onClick={handleReveal}
-          >
-            {pending ? "Revealing…" : "Reveal"}
-          </Button>
+      <p className="text-center text-sm">
+        <Link href="/play/leaderboard" className="font-semibold text-violet-300 hover:text-white">
+          🏆 21 Generator leaderboard
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+function RevealCard({
+  result,
+  mode,
+  elapsedMs,
+  onPlayAgain,
+}: {
+  result: RevealState;
+  mode: Mode;
+  elapsedMs: number;
+  onPlayAgain: () => void;
+}) {
+  const players = result.players!;
+  const scored = result.scored!;
+  const isBlackjack = scored.state === "blackjack";
+
+  const [name, setName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [rank, setRank] = useState<number | null>(null);
+  const [error, setError] = useState<string | undefined>();
+
+  async function submit() {
+    setSubmitting(true);
+    setError(undefined);
+    const res = await submitGeneratorScore({ name, mode, durationMs: elapsedMs });
+    setSubmitting(false);
+    if (res.error) setError(res.error);
+    else setRank(res.rank ?? null);
+  }
+
+  return (
+    <Card className="animate-pop-in">
+      <CardTitle>Reveal</CardTitle>
+      <CardSubtitle>Final non-passing TDs.</CardSubtitle>
+
+      <div className="mt-4 space-y-2">
+        {players.map((p, i) => (
+          <div key={p.playerId} className="animate-stagger-in" style={{ animationDelay: `${i * 90}ms` }}>
+            <PlayerRow
+              name={p.fullName}
+              team={`${p.team ?? "FA"} · ${p.season}`}
+              position={p.position}
+              trailing={<span className="font-semibold">{p.nonPassingTd} TD</span>}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 flex items-center justify-between">
+        <ScoreMeter total={scored.totalTd} state={scored.state} />
+        <StatePill state={scored.state} />
+      </div>
+
+      {isBlackjack ? (
+        <div className="mt-4 rounded-xl border border-success/40 bg-success/10 p-4">
+          <p className="text-sm font-semibold text-foreground">
+            🎉 Exactly 21 in {formatTime(elapsedMs)} — {mode} mode!
+          </p>
+          {rank !== null ? (
+            <p className="mt-2 text-sm text-muted">
+              You&apos;re <span className="font-bold text-foreground">#{rank}</span> on the {mode} board.{" "}
+              <Link href="/play/leaderboard" className="font-semibold text-violet-300 hover:text-white">
+                See the leaderboard
+              </Link>
+            </p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              <p className="text-sm text-muted">Add your time to the {mode} leaderboard:</p>
+              <div className="flex gap-2">
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your name"
+                  maxLength={40}
+                  className="flex-1"
+                />
+                <Button onClick={submit} disabled={submitting || !name.trim()}>
+                  {submitting ? "Saving…" : "Add"}
+                </Button>
+              </div>
+              {error ? <p className="text-sm text-danger">{error}</p> : null}
+            </div>
+          )}
         </div>
       ) : null}
-    </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button variant="secondary" onClick={onPlayAgain}>
+          Play again
+        </Button>
+        <Link href="/play/leaderboard">
+          <Button variant="secondary">🏆 Leaderboard</Button>
+        </Link>
+      </div>
+    </Card>
   );
 }
 

@@ -1,9 +1,11 @@
 "use server";
 
 import {
+  countFasterGeneratorScores,
   getFinalSeasonTotals,
   getPlayersByIds,
   getSeasonTeams,
+  insertGeneratorScore,
   listPlaySeasons,
 } from "@/lib/db/queries";
 import { scoreLineup, type ScoredLineup } from "@/lib/scoring/score";
@@ -51,10 +53,35 @@ export async function rollYear(currentSeason: number): Promise<PlaySlot | null> 
   return slot ?? null;
 }
 
-/** Easy-mode running total: one picked player's non-passing TDs for that slot's season. */
-export async function revealPick(season: number, playerId: string): Promise<number> {
-  const totals = await getFinalSeasonTotals(season);
-  return totals.get(playerId) ?? 0;
+const MIN_DURATION_MS = 3_000; // a real 5-pick run can't be faster than this
+const MAX_DURATION_MS = 6 * 60 * 60 * 1000; // 6h ceiling guards against junk
+
+export interface SubmitScoreState {
+  error?: string;
+  rank?: number; // 1-based placement on the mode's board
+}
+
+/**
+ * Records an exactly-21 run on the generator hall of fame (see PLAN.md). The
+ * client times the run, so this is honour-system — we only sanity-bound the
+ * duration and clamp the name. Returns the run's placement for that mode.
+ */
+export async function submitGeneratorScore(input: {
+  name: string;
+  mode: string;
+  durationMs: number;
+}): Promise<SubmitScoreState> {
+  const name = input.name.trim().slice(0, 40);
+  if (!name) return { error: "Enter a name for the leaderboard." };
+  if (input.mode !== "easy" && input.mode !== "hard") return { error: "Unknown mode." };
+  const durationMs = Math.round(input.durationMs);
+  if (!Number.isFinite(durationMs) || durationMs < MIN_DURATION_MS || durationMs > MAX_DURATION_MS) {
+    return { error: "That run time doesn't look right." };
+  }
+
+  await insertGeneratorScore({ name, mode: input.mode, durationMs });
+  const faster = await countFasterGeneratorScores(input.mode, durationMs);
+  return { rank: faster + 1 };
 }
 
 /**
