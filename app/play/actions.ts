@@ -6,10 +6,9 @@ import {
   getPlayersByIds,
   getSeasonTeams,
   insertGeneratorScore,
-  listPlaySeasons,
 } from "@/lib/db/queries";
 import { scoreLineup, type ScoredLineup } from "@/lib/scoring/score";
-import { buildSeasonSlots, buildTeamSlot, type PlaySlot } from "./roll";
+import { buildRandomBoard, buildTeamSlot, buildYearSlot, type PlaySlot } from "./roll";
 
 export type { PlaySlot } from "./roll";
 
@@ -34,23 +33,19 @@ export interface RevealState {
   scored?: ScoredLineup;
 }
 
-/** A fresh 5-team board for a chosen season (the season selector). */
-export async function rollBoard(season: number): Promise<PlaySlot[]> {
-  return buildSeasonSlots(season);
+/** A fresh random board — every slot a random (season, team) card. */
+export async function rollRandomBoard(): Promise<PlaySlot[]> {
+  return buildRandomBoard();
 }
 
-/** Team re-roll (easy mode): a fresh slot in the same season, avoiding teams already on the board. */
+/** Team re-roll (year locked): a different team in the same season, avoiding teams already on the board. */
 export async function rollTeam(season: number, excludeTeams: string[]): Promise<PlaySlot | null> {
   return buildTeamSlot(season, excludeTeams);
 }
 
-/** Year re-roll (easy mode): a fresh slot from a random *different* available season. */
-export async function rollYear(currentSeason: number): Promise<PlaySlot | null> {
-  const others = (await listPlaySeasons()).filter((s) => s !== currentSeason);
-  if (others.length === 0) return null;
-  const season = others[Math.floor(Math.random() * others.length)];
-  const [slot] = await buildSeasonSlots(season, 1);
-  return slot ?? null;
+/** Year re-roll (team locked): the same team in a random different season. */
+export async function rollYear(team: string, currentSeason: number): Promise<PlaySlot | null> {
+  return buildYearSlot(team, currentSeason);
 }
 
 const MIN_DURATION_MS = 3_000; // a real 5-pick run can't be faster than this

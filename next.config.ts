@@ -29,6 +29,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   env: { NEXT_PUBLIC_BUILD_ID: buildId },
+  // nodemailer (Gmail SMTP for feedback/cron emails) uses dynamic requires that
+  // shouldn't be bundled — load it as a native Node module on the server.
+  serverExternalPackages: ["nodemailer"],
   outputFileTracingIncludes: { "/api/admin/migrate": ["./drizzle/**"] },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

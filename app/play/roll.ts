@@ -1,11 +1,11 @@
 /**
- * Server-only slot builders for the multi-year 21 Generator. Totals are used
- * here purely to (a) drop guaranteed-zero players and (b) sort best-first so the
- * jeopardy is picking blind — they are NEVER returned to the client. A slot is a
- * (season, team) card plus that team's scorer roster with no totals attached.
+ * Server-only slot builders for the 21 Generator. Each slot is a random
+ * (season, team) card — the wheel spins both. Totals are used here only to drop
+ * guaranteed-zero players and sort best-first (so picking stays blind); they are
+ * NEVER returned to the client.
  */
 import "server-only";
-import { getSeasonRosters, getFinalSeasonTotals, type BarePlayer } from "@/lib/db/queries";
+import { getSeasonRosters, getFinalSeasonTotals, listPlaySeasons, type BarePlayer } from "@/lib/db/queries";
 
 export interface PlaySlot {
   season: number;
@@ -39,23 +39,54 @@ async function scorerRostersByTeam(season: number): Promise<Map<string, BarePlay
   return result;
 }
 
-/** Five random (season, team) slots for one season — the initial board / a year re-roll. */
-export async function buildSeasonSlots(season: number, count = 5): Promise<PlaySlot[]> {
-  const byTeam = await scorerRostersByTeam(season);
+/**
+ * Five random (season, team) slots drawn across every loaded season — the
+ * board. Teams are kept distinct so no player can appear twice.
+ */
+export async function buildRandomBoard(count = 5): Promise<PlaySlot[]> {
+  const seasons = await listPlaySeasons();
+  if (seasons.length === 0) return [];
+
+  const cache = new Map<number, Map<string, BarePlayer[]>>();
+  const rosters = async (s: number) => {
+    let m = cache.get(s);
+    if (!m) {
+      m = await scorerRostersByTeam(s);
+      cache.set(s, m);
+    }
+    return m;
+  };
+
   const slots: PlaySlot[] = [];
-  for (const team of shuffle([...byTeam.keys()])) {
-    if (slots.length === count) break;
+  const usedTeams = new Set<string>();
+  for (let attempt = 0; attempt < 300 && slots.length < count; attempt++) {
+    const season = seasons[Math.floor(Math.random() * seasons.length)];
+    const byTeam = await rosters(season);
+    const teams = [...byTeam.keys()].filter((t) => !usedTeams.has(t));
+    if (teams.length === 0) continue;
+    const team = teams[Math.floor(Math.random() * teams.length)];
+    usedTeams.add(team);
     slots.push({ season, team, players: byTeam.get(team)! });
   }
   return slots;
 }
 
-/** One fresh slot in `season` whose team isn't already on the board — a team re-roll. */
+/** Team re-roll (year locked): a different team in the *same* season, avoiding teams already on the board. */
 export async function buildTeamSlot(season: number, excludeTeams: string[]): Promise<PlaySlot | null> {
   const byTeam = await scorerRostersByTeam(season);
   const exclude = new Set(excludeTeams);
   for (const team of shuffle([...byTeam.keys()])) {
     if (!exclude.has(team)) return { season, team, players: byTeam.get(team)! };
+  }
+  return null;
+}
+
+/** Year re-roll (team locked): the *same* team in a random *different* season it has scorers in. */
+export async function buildYearSlot(team: string, excludeSeason: number): Promise<PlaySlot | null> {
+  const seasons = shuffle((await listPlaySeasons()).filter((s) => s !== excludeSeason));
+  for (const season of seasons) {
+    const roster = (await scorerRostersByTeam(season)).get(team);
+    if (roster && roster.length > 0) return { season, team, players: roster };
   }
   return null;
 }

@@ -12,10 +12,10 @@ export const dynamic = "force-dynamic";
 
 function formatTime(ms: number): string {
   const totalSeconds = ms / 1000;
-  if (totalSeconds < 60) return `${totalSeconds.toFixed(1)}s`;
+  if (totalSeconds < 60) return `${totalSeconds.toFixed(3)}s`;
   const m = Math.floor(totalSeconds / 60);
-  const s = Math.round(totalSeconds % 60);
-  return `${m}m ${String(s).padStart(2, "0")}s`;
+  const s = totalSeconds % 60;
+  return `${m}m ${s.toFixed(3).padStart(6, "0")}s`;
 }
 
 export default async function GeneratorLeaderboardPage() {

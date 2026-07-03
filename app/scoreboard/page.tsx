@@ -1,8 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Container, Card, CardTitle, CardSubtitle, StatePill, Badge, type LineupState } from "@/design";
-import { getEnteredEntrants, getScoreboard } from "@/lib/db/queries";
+import { getEnteredEntrants, getScoreboard, getStatsRefreshedAt } from "@/lib/db/queries";
 import { isLocked } from "@/lib/lock";
+
+/** Date + time in UK (Europe/London) time, e.g. "3 Jul 2026, 14:05". */
+function formatUkTime(d: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(d);
+}
 
 export const metadata: Metadata = {
   title: "Scoreboard · Touchdown Blackjack",
@@ -19,6 +28,7 @@ export default async function ScoreboardPage() {
   const rows = locked ? await getScoreboard() : [];
   const entered = locked ? [] : await getEnteredEntrants();
   const count = locked ? rows.length : entered.length;
+  const refreshedAt = locked ? await getStatsRefreshedAt() : null;
 
   return (
     <Container className="space-y-6 py-8">
@@ -32,6 +42,11 @@ export default async function ScoreboardPage() {
             ? "Lineups are locked — totals update once a day."
             : "Lineups stay private until Week 1 kickoff. Entrants below have submitted; totals and picks reveal at lock."}
         </p>
+        {refreshedAt ? (
+          <p className="mt-1 text-xs text-muted">
+            Stats last refreshed: {formatUkTime(refreshedAt)} (UK time)
+          </p>
+        ) : null}
       </header>
 
       {count === 0 ? (
