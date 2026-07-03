@@ -84,6 +84,27 @@ export const playerWeekStats = pgTable(
 );
 
 /**
+ * Per-(player, season) team for the 21 Generator's multi-year mode. A player's
+ * team varies by season, so the single frozen `players.playTeam` (2025 only)
+ * can't label historical rosters — "Broncos 2021" needs the team a player was
+ * on *that* year. Populated additively per season (2025 seeded from
+ * `players.playTeam` in a data migration; older seasons via the history
+ * ingest, see lib/jobs/refresh.ts#ingestHistoricalSeason). Never touches the
+ * live 2026 game.
+ */
+export const playerSeasonTeam = pgTable(
+  "player_season_team",
+  {
+    playerId: text("player_id")
+      .notNull()
+      .references(() => players.id),
+    season: smallint("season").notNull(),
+    team: text("team").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.playerId, t.season] })],
+);
+
+/**
  * Precomputed scoreboard (Session 2 cron writes this; reads never hit raw
  * picks/stats so 1,000 concurrent viewers hit cache, not live joins).
  */
