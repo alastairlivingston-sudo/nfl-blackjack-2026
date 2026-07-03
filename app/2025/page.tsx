@@ -16,8 +16,8 @@ export default function LastYearPage() {
         </p>
         <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Last Year&apos;s Leaderboard</h1>
         <p className="mt-2 text-muted">
-          The final 2025 results. No one landed on exactly 21, so prizes were given away by random
-          draw. Tap any entrant to see their five picks.
+          The final 2025 results, ranked by how close each lineup landed to 21. No one hit exactly
+          21, so prizes were given away by random draw. Tap any entrant to see their five picks.
         </p>
       </header>
 
