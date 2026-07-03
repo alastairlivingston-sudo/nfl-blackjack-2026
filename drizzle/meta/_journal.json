@@ -71,6 +71,13 @@
       "when": 1782234805322,
       "tag": "0009_fix_play_team_2025",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783069591197,
+      "tag": "0010_even_black_bird",
+      "breakpoints": true
     }
   ]
 }

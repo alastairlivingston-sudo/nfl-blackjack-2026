@@ -3,5 +3,14 @@ export function currentSeason(): number {
   return Number(process.env.NFL_SEASON ?? new Date().getFullYear());
 }
 
-/** Final 2025 stats power the 21 Generator (PLAN.md "21 Generator") — fixed, not env-driven, since it's historical and deterministic. */
+/** Final 2025 stats power the 21 Generator (PLAN.md "21 Generator") — fixed, not env-driven, since it's historical and deterministic. The newest/default season the generator offers. */
 export const PLAY_SEASON = 2025;
+
+/**
+ * Oldest season the multi-year 21 Generator can ingest. Sleeper's stats +
+ * per-week team data are reliable back to 2016; older seasons get patchier, so
+ * this bounds the history backfill (scripts/ingest-history.ts). The *available*
+ * seasons the UI actually offers come from the DB (queries.ts#listPlaySeasons),
+ * so nothing shows until its data is ingested.
+ */
+export const PLAY_SEASON_MIN = 2016;

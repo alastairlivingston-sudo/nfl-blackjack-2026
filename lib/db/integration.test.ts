@@ -62,8 +62,16 @@ import {
   getTeamPlayersBare,
   listPlayTeams,
   getPlayersByIds,
+  listPlaySeasons,
+  getSeasonRosters,
+  getSeasonTeams,
 } from "./queries";
-import { computeLeaderboard, ingestWeek, ingestSeason } from "../jobs/refresh";
+import {
+  computeLeaderboard,
+  ingestWeek,
+  ingestSeason,
+  ingestHistoricalSeason,
+} from "../jobs/refresh";
 
 async function seedStat(
   playerId: string,
@@ -281,4 +289,101 @@ test("ST6: ingestSeason's default week range covers exactly weeks 1-18, no more 
     Array.from({ length: 18 }, (_, i) => i + 1),
     "a full-season refresh hits every week 1-18 in order, so a corrected earlier week is never skipped",
   );
+});
+
+test("MY1: multi-year read path groups rosters and totals by the picked season", async () => {
+  // Simulate a backfilled season 2090 directly (no network): per-season teams +
+  // that year's weekly non-passing TDs. This is exactly the state the /play
+  // generator reads for a historical year.
+  await client.exec(`
+    insert into player_season_team (player_id, season, team) values
+      ('p1', 2090, 'DEN'), ('p2', 2090, 'DEN'), ('p3', 2090, 'LV');
+  `);
+  await seedStat("p1", 2090, 1, 4, 0); // 4
+  await seedStat("p2", 2090, 1, 0, 2); // 2
+  await seedStat("p3", 2090, 1, 0, 0, 1, 0); // 1 (return TD)
+
+  const rosters = await getSeasonRosters(2090);
+  assert.deepEqual(
+    (rosters.get("DEN") ?? []).map((p) => p.id).sort(),
+    ["p1", "p2"],
+    "players grouped under the team they were on that season",
+  );
+  assert.deepEqual((rosters.get("LV") ?? []).map((p) => p.id), ["p3"]);
+
+  const totals = await getFinalSeasonTotals(2090);
+  assert.equal(totals.get("p1"), 4);
+  assert.equal(totals.get("p3"), 1, "return TD counted in the season total");
+
+  const teams = await getSeasonTeams(2090, ["p1", "p3"]);
+  assert.equal(teams.get("p1"), "DEN");
+  assert.equal(teams.get("p3"), "LV");
+
+  const seasons = await listPlaySeasons();
+  assert.ok(seasons.includes(2090), "the backfilled season is offered by the generator");
+  assert.deepEqual(seasons, [...seasons].sort((a, b) => b - a), "seasons come back newest-first");
+});
+
+test("MY2: ingestHistoricalSeason additively imports retired scorers, FK-safe, resolves per-season teams", async () => {
+  const realFetch = globalThis.fetch;
+  // Sleeper's player dump needs >=300 skill players to pass the sanity guard.
+  const dump: Record<string, unknown> = {
+    h1: { player_id: "h1", full_name: "Hist One", position: "RB" },
+    h2: { player_id: "h2", full_name: "Hist Two", position: "WR" },
+    p1: { player_id: "p1", full_name: "Alpha Back", position: "RB" },
+  };
+  for (let i = 0; i < 320; i++) dump[`f${i}`] = { player_id: `f${i}`, full_name: `Filler ${i}`, position: "RB" };
+
+  // h1/h2 are retired scorers not in `players`; p1 is already active; ol99 is a
+  // scorer absent from the dump; TEAM_DEN is a team row. Only h1/h2/p1 survive.
+  const week1 = { h1: { rush_td: 3 }, h2: { rec_td: 2 }, p1: { rush_td: 1 }, ol99: { fum_rec_td: 1 }, TEAM_DEN: { rush_td: 9 } };
+  const seasonTeams: Record<string, string> = { h1: "DEN", h2: "DEN", p1: "SF" };
+
+  globalThis.fetch = async (url: RequestInfo | URL, init?: RequestInit) => {
+    const u = String(url);
+    if (u.endsWith("/players/nfl")) return new Response(JSON.stringify(dump), { status: 200 });
+    const statMatch = u.match(/\/stats\/nfl\/regular\/2088\/(\d+)$/);
+    if (statMatch) {
+      return new Response(JSON.stringify(Number(statMatch[1]) === 1 ? week1 : {}), { status: 200 });
+    }
+    if (u.includes("graphql")) {
+      const body = String(init?.body ?? "");
+      const rows = Object.entries(seasonTeams)
+        .filter(([id]) => body.includes(id))
+        .map(([player_id, team]) => ({ player_id, team }));
+      return new Response(JSON.stringify({ data: { stats_for_players_in_week: rows } }), { status: 200 });
+    }
+    throw new Error(`unexpected fetch: ${u}`);
+  };
+
+  try {
+    const res = await ingestHistoricalSeason(2088);
+    assert.deepEqual(res, { players: 3, teams: 3 });
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+
+  // Retired scorers were added inactive; the existing active player is untouched.
+  const rows = await client.query<{ id: string; active: boolean }>(
+    `select id, active from players where id in ('h1','h2','p1','ol99') order by id`,
+  );
+  assert.deepEqual(
+    rows.rows.map((r) => `${r.id}:${r.active}`),
+    ["h1:false", "h2:false", "p1:true"],
+    "h1/h2 imported inactive; p1 left active (ON CONFLICT DO NOTHING); ol99 never imported",
+  );
+
+  // Stats for the season only include FK-valid players.
+  const stats = await client.query<{ player_id: string }>(
+    `select player_id from player_week_stats where season=2088 order by player_id`,
+  );
+  assert.deepEqual(stats.rows.map((r) => r.player_id), ["h1", "h2", "p1"], "ol99/TEAM_DEN dropped");
+
+  const totals = await getFinalSeasonTotals(2088);
+  assert.equal(totals.get("h1"), 3);
+  assert.equal(totals.get("h2"), 2);
+
+  const rosters = await getSeasonRosters(2088);
+  assert.deepEqual((rosters.get("DEN") ?? []).map((p) => p.id).sort(), ["h1", "h2"]);
+  assert.deepEqual((rosters.get("SF") ?? []).map((p) => p.id), ["p1"]);
 });

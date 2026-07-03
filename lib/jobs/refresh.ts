@@ -5,8 +5,8 @@
  */
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db } from "../db/client";
-import { entrants, picks, players, playerWeekStats, leaderboard } from "../db/schema";
-import { fetchSeasonTeams, fetchWeekStats } from "../sleeper";
+import { entrants, picks, players, playerWeekStats, playerSeasonTeam, leaderboard } from "../db/schema";
+import { fetchPlayers, fetchSeasonTeams, fetchWeekStats } from "../sleeper";
 import { PLAY_SEASON } from "../season";
 import { scoreLineup, rankEntrants, type PlayerTotal } from "../scoring/score";
 
@@ -116,6 +116,83 @@ export async function ingestSeason(season: number, weeks: number[] = range(1, 18
   for (const week of weeks) {
     await ingestWeek(season, week);
   }
+}
+
+/**
+ * Ensures every skill-position player who scored a non-passing TD in `season`
+ * exists in `players`, so the subsequent stats ingest (which drops any
+ * player_id not already present — see ingestWeek's FK guard) keeps them. New
+ * rows are inserted `active: false` with a null team; existing rows (the live,
+ * currently-active pool) are left untouched via ON CONFLICT DO NOTHING, so this
+ * never disturbs the live 2026 game. Returns the ids that are now importable.
+ */
+export async function importSeasonScorers(season: number, weeks: number[] = range(1, 18)): Promise<string[]> {
+  const scorerIds = new Set<string>();
+  for (const week of weeks) {
+    for (const s of await fetchWeekStats(season, week)) {
+      if (s.rushTd > 0 || s.recTd > 0 || s.returnTd > 0 || s.recoveryTd > 0) scorerIds.add(s.playerId);
+    }
+  }
+  if (scorerIds.size === 0) return [];
+
+  // Only players in the pickable QB/RB/WR/TE dump are usable; a lineman's
+  // fumble-recovery TD, or a team D/ST row, has no place in the picker.
+  const byId = new Map((await fetchPlayers()).map((p) => [p.id, p]));
+  const importable = [...scorerIds].map((id) => byId.get(id)).filter((p) => p !== undefined);
+  if (importable.length === 0) return [];
+
+  await db()
+    .insert(players)
+    .values(
+      importable.map((p) => ({
+        id: p.id,
+        fullName: p.fullName,
+        team: null,
+        position: p.position,
+        active: false,
+        searchName: p.searchName,
+      })),
+    )
+    .onConflictDoNothing({ target: players.id });
+
+  return importable.map((p) => p.id);
+}
+
+/**
+ * Resolves each given player's team *as of `season`* from Sleeper's weekly
+ * stats and upserts it into player_season_team — the per-season analogue of
+ * backfillPlayTeam. Additive: only writes the requested season's rows.
+ */
+export async function resolveSeasonTeams(season: number, ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const teams = await fetchSeasonTeams(season, ids);
+  if (teams.size === 0) return 0;
+
+  await db()
+    .insert(playerSeasonTeam)
+    .values([...teams].map(([playerId, team]) => ({ playerId, season, team })))
+    .onConflictDoUpdate({
+      target: [playerSeasonTeam.playerId, playerSeasonTeam.season],
+      set: { team: sql`excluded.team` },
+    });
+  return teams.size;
+}
+
+/**
+ * One-shot backfill of a completed season for the multi-year 21 Generator:
+ * import that year's scorers, ingest their weekly non-passing TDs, then resolve
+ * their per-season teams. Entirely additive (new players rows, new
+ * player_week_stats rows for `season`, new player_season_team rows) — the live
+ * 2026 game and the existing 2025 generator data are never touched. Idempotent:
+ * safe to re-run. Drives scripts/ingest-history.ts.
+ */
+export async function ingestHistoricalSeason(
+  season: number,
+): Promise<{ players: number; teams: number }> {
+  const ids = await importSeasonScorers(season);
+  await ingestSeason(season);
+  const teams = await resolveSeasonTeams(season, ids);
+  return { players: ids.length, teams };
 }
 
 export async function computeLeaderboard(season: number): Promise<number> {

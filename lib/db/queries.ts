@@ -6,7 +6,7 @@
  */
 import { and, asc, desc, eq, gt, gte, inArray, or, sql } from "drizzle-orm";
 import { db } from "./client";
-import { entrants, feedback, leaderboard, loginAttempts, picks, players, playerWeekStats } from "./schema";
+import { entrants, feedback, leaderboard, loginAttempts, picks, players, playerWeekStats, playerSeasonTeam } from "./schema";
 import { currentSeason } from "../season";
 
 export interface ScoreboardRow {
@@ -239,6 +239,61 @@ export async function getAllPlayTeamRosters(): Promise<Map<string, BarePlayer[]>
     byTeam.set(team, roster);
   }
   return byTeam;
+}
+
+/**
+ * Completed seasons the multi-year 21 Generator can offer, newest first — the
+ * distinct seasons present in `player_season_team`. The UI reads this directly,
+ * so a season only appears once its data has been ingested (2025 is seeded on
+ * deploy; older seasons via scripts/ingest-history.ts). Empty/one-element until
+ * backfills run, which is what makes shipping the code inert-until-ready.
+ */
+export async function listPlaySeasons(): Promise<number[]> {
+  const rows = await db()
+    .selectDistinct({ season: playerSeasonTeam.season })
+    .from(playerSeasonTeam)
+    .orderBy(desc(playerSeasonTeam.season));
+  return rows.map((r) => r.season);
+}
+
+/**
+ * Every team's roster for one season, grouped by the team the player was on
+ * *that* season (from `player_season_team`) — the season-scoped analogue of
+ * getAllPlayTeamRosters. Totals stay hidden (BarePlayer) until the reveal.
+ */
+export async function getSeasonRosters(season: number): Promise<Map<string, BarePlayer[]>> {
+  const rows = await db()
+    .select({
+      id: players.id,
+      fullName: players.fullName,
+      position: players.position,
+      team: playerSeasonTeam.team,
+    })
+    .from(playerSeasonTeam)
+    .innerJoin(players, eq(players.id, playerSeasonTeam.playerId))
+    .where(eq(playerSeasonTeam.season, season))
+    .orderBy(asc(players.fullName));
+
+  const byTeam = new Map<string, BarePlayer[]>();
+  for (const { team, ...player } of rows) {
+    const roster = byTeam.get(team) ?? [];
+    roster.push(player);
+    byTeam.set(team, roster);
+  }
+  return byTeam;
+}
+
+/**
+ * The team each given player was on in `season`, from `player_season_team` —
+ * used by the reveal to label a pick under the same team it was picked under.
+ */
+export async function getSeasonTeams(season: number, ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db()
+    .select({ playerId: playerSeasonTeam.playerId, team: playerSeasonTeam.team })
+    .from(playerSeasonTeam)
+    .where(and(eq(playerSeasonTeam.season, season), inArray(playerSeasonTeam.playerId, ids)));
+  return new Map(rows.map((r) => [r.playerId, r.team]));
 }
 
 export interface Entrant {

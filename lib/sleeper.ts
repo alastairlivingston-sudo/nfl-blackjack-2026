@@ -40,6 +40,48 @@ export async function fetchWeekStats(season: number, week: number): Promise<Week
   }));
 }
 
+const SLEEPER_PLAYERS_URL = "https://api.sleeper.app/v1/players/nfl";
+const ELIGIBLE_POSITIONS = new Set(["QB", "RB", "WR", "TE"]);
+
+export interface DumpPlayer {
+  id: string;
+  fullName: string;
+  position: string;
+  searchName: string;
+}
+
+/**
+ * The full Sleeper player dump, filtered to the pickable positions (QB/RB/WR/TE)
+ * regardless of active status — unlike scripts/import-players.ts, which also
+ * requires a current NFL team. The 21 Generator's historical seasons need
+ * players who have since retired/moved on (e.g. a 2016 scorer), so this keeps
+ * *any* skill-position player Sleeper knows about; the per-season team comes
+ * from fetchSeasonTeams, not the live roster. `team` is intentionally dropped.
+ */
+export async function fetchPlayers(): Promise<DumpPlayer[]> {
+  const res = await fetch(SLEEPER_PLAYERS_URL, { signal: AbortSignal.timeout(30_000) });
+  if (!res.ok) {
+    throw new Error(`Sleeper players request failed: ${res.status} ${res.statusText}`);
+  }
+  const raw: Record<
+    string,
+    { player_id: string; full_name?: string; first_name?: string; last_name?: string; position: string | null }
+  > = await res.json();
+
+  const players: DumpPlayer[] = [];
+  for (const p of Object.values(raw)) {
+    if (!p.position || !ELIGIBLE_POSITIONS.has(p.position)) continue;
+    const fullName = p.full_name ?? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim();
+    if (!fullName) continue;
+    players.push({ id: p.player_id, fullName, position: p.position, searchName: fullName.toLowerCase() });
+  }
+  if (players.length < 300) {
+    // Sanity guard: Sleeper's schema/status values have changed before.
+    throw new Error(`Only found ${players.length} players — Sleeper response shape may have changed. Aborting.`);
+  }
+  return players;
+}
+
 const SLEEPER_GRAPHQL = "https://sleeper.com/graphql";
 // player_ids per GraphQL request — keeps the query/URL well under any limit
 // while still resolving the full ~950-player pool in a handful of round trips.
