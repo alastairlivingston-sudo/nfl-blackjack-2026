@@ -50,6 +50,7 @@ function formatTime(ms: number): string {
 
 export function PlayPicker({ initialSlots, multiSeason }: { initialSlots: PlaySlot[]; multiSeason: boolean }) {
   const [mode, setMode] = useState<Mode>("easy");
+  const [started, setStarted] = useState(false); // locks the mode once the first spin happens
   const [slots, setSlots] = useState<PlaySlot[]>(initialSlots);
   const [step, setStep] = useState(0);
   const [status, setStatus] = useState<StepStatus>("pending");
@@ -87,14 +88,18 @@ export function PlayPicker({ initialSlots, multiSeason }: { initialSlots: PlaySl
     setRespinNote(undefined);
     setResult(null);
     setElapsedMs(0);
+    setStarted(false);
     startedAt.current = null;
   }
 
   function spin(target?: PlaySlot) {
     const slot = target ?? current;
     if (!slot) return;
-    // Clock starts on the very first spin of the game.
-    if (startedAt.current === null) startedAt.current = performance.now(); // eslint-disable-line react-hooks/purity
+    // Clock starts on the very first spin of the game, which also locks the mode.
+    if (startedAt.current === null) {
+      startedAt.current = performance.now(); // eslint-disable-line react-hooks/purity
+      setStarted(true);
+    }
     setRespinNote(undefined);
     setStatus("spinning");
     let ticks = 0;
@@ -200,7 +205,7 @@ export function PlayPicker({ initialSlots, multiSeason }: { initialSlots: PlaySl
 
   return (
     <div className="space-y-4">
-      <ModeToggle mode={mode} onMode={setMode} />
+      <ModeToggle mode={mode} onMode={setMode} locked={started} />
       <Progress slots={slots} picks={picks} step={step} />
 
       <Card className="animate-pop-in" key={`${step}-${current?.team}-${current?.season}`}>
@@ -234,6 +239,22 @@ export function PlayPicker({ initialSlots, multiSeason }: { initialSlots: PlaySl
 
         {status === "revealed" && current ? (
           <div className="mt-3 space-y-2">
+            {canTeamRespin || canYearRespin ? (
+              <div className="flex flex-wrap gap-2 border-b border-border pb-3">
+                {canTeamRespin ? (
+                  <Button variant="secondary" onClick={respinTeam} disabled={busy || pending}>
+                    ↻ Respin team
+                  </Button>
+                ) : null}
+                {canYearRespin ? (
+                  <Button variant="secondary" onClick={respinYear} disabled={busy || pending}>
+                    ↻ Respin year
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+            {respinNote ? <p className="text-sm text-muted">{respinNote}</p> : null}
+
             {current.players.map((p, i) => {
               const picked = picks[step]?.playerId === p.id;
               const popping = justPicked === p.id;
@@ -256,22 +277,6 @@ export function PlayPicker({ initialSlots, multiSeason }: { initialSlots: PlaySl
                 </button>
               );
             })}
-
-            {canTeamRespin || canYearRespin ? (
-              <div className="flex flex-wrap gap-2 pt-2">
-                {canTeamRespin ? (
-                  <Button variant="secondary" onClick={respinTeam} disabled={busy || pending}>
-                    ↻ Respin team
-                  </Button>
-                ) : null}
-                {canYearRespin ? (
-                  <Button variant="secondary" onClick={respinYear} disabled={busy || pending}>
-                    ↻ Respin year
-                  </Button>
-                ) : null}
-              </div>
-            ) : null}
-            {respinNote ? <p className="pt-1 text-sm text-muted">{respinNote}</p> : null}
           </div>
         ) : null}
       </Card>
@@ -387,20 +392,25 @@ function RevealCard({
   );
 }
 
-function ModeToggle({ mode, onMode }: { mode: Mode; onMode: (m: Mode) => void }) {
+function ModeToggle({ mode, onMode, locked }: { mode: Mode; onMode: (m: Mode) => void; locked: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <span className="text-sm text-muted">
-        {mode === "easy" ? "Easy — one team + one year respin." : "Hard — no respins."}
+        {locked
+          ? "Mode is locked once you spin."
+          : mode === "easy"
+            ? "Easy — one team + one year respin."
+            : "Hard — no respins."}
       </span>
       <div className="inline-flex rounded-xl border border-border bg-surface-2 p-0.5 text-sm">
-        {(["hard", "easy"] as const).map((m) => (
+        {(["easy", "hard"] as const).map((m) => (
           <button
             key={m}
             type="button"
+            disabled={locked}
             onClick={() => onMode(m)}
             className={
-              "rounded-lg px-3 py-1 font-semibold capitalize transition-colors " +
+              "rounded-lg px-3 py-1 font-semibold capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-60 " +
               (mode === m ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground")
             }
           >

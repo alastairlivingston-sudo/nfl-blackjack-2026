@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, StatePill, type LineupState } from "@/design";
 import type { Entrant2025 } from "@/lib/data/leaderboard2025";
 
@@ -11,13 +11,30 @@ function stateFor(e: Entrant2025): LineupState {
   return "short";
 }
 
+const distanceTo21 = (e: Entrant2025) => Math.abs(e.total - 21);
+
 export function Leaderboard2025({ entrants }: { entrants: Entrant2025[] }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
+  // Rank by how close to 21 (absolute distance), not by highest total. Ties go
+  // to valid lineups first, then alphabetically for a stable order.
+  const ranked = useMemo(
+    () =>
+      [...entrants].sort((a, b) => {
+        const da = distanceTo21(a);
+        const db = distanceTo21(b);
+        if (da !== db) return da - db;
+        if (a.valid !== b.valid) return a.valid ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      }),
+    [entrants],
+  );
+
   return (
     <Card className="divide-y divide-border p-0">
-      {entrants.map((e, i) => {
+      {ranked.map((e, i) => {
         const open = openIndex === i;
+        const dist = distanceTo21(e);
         return (
           <div key={`${e.name}-${i}`}>
             <button
@@ -33,7 +50,12 @@ export function Leaderboard2025({ entrants }: { entrants: Entrant2025[] }) {
                 <span className="truncate font-semibold">{e.name}</span>
               </div>
               <div className="flex shrink-0 items-center gap-3">
-                <span className="font-mono text-sm font-bold tabular-nums">{e.total} / 21</span>
+                <div className="text-right leading-tight">
+                  <div className="font-mono text-sm font-bold tabular-nums">{e.total} TD</div>
+                  <div className="font-mono text-xs tabular-nums text-muted">
+                    {dist === 0 ? "on 21" : `${dist} from 21`}
+                  </div>
+                </div>
                 <StatePill state={stateFor(e)} />
               </div>
             </button>
