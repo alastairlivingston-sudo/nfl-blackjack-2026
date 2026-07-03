@@ -190,9 +190,18 @@ export function PlayPicker({ slots }: { slots: TeamSlot[] }) {
       {result?.error ? <p className="text-sm text-danger">{result.error}</p> : null}
 
       {allPicked ? (
-        <Button className="w-full animate-pop-in" size="lg" disabled={pending} onClick={handleReveal}>
-          {pending ? "Revealing…" : "Reveal"}
-        </Button>
+        // Sticky so it stays in reach the moment the 5th pick lands — no
+        // scrolling past the team card to find the reveal.
+        <div className="sticky bottom-4 z-30">
+          <Button
+            className="w-full animate-pop-in shadow-lg shadow-black/40"
+            size="lg"
+            disabled={pending}
+            onClick={handleReveal}
+          >
+            {pending ? "Revealing…" : "Reveal"}
+          </Button>
+        </div>
       ) : null}
     </div>
   );

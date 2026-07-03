@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { Button, Card, CardTitle, CardSubtitle, Container } from "@/design";
+import { auth } from "@/auth";
 import { signInWithGoogle } from "./actions";
 
 function GoogleLogo() {
@@ -24,7 +26,13 @@ function GoogleLogo() {
   );
 }
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  // Already signed in? Don't show the sign-in card again — send them to their
+  // entry (view/edit their own lineup), which is where a returning user expects
+  // to land, not the sign-up screen.
+  const session = await auth();
+  if (session?.user?.email) redirect("/entry");
+
   return (
     <Container className="py-8">
       <Card>
