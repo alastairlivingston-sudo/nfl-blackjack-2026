@@ -2,11 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button, Card, CardTitle, CardSubtitle, Input, PlayerRow, ScoreMeter, StatePill } from "@/design";
 import {
   revealPlayLineup,
-  rollBoard,
+  rollRandomBoard,
   rollTeam,
   rollYear,
   submitGeneratorScore,
@@ -28,35 +27,38 @@ const SPIN_TEAMS = [
   "JAX", "TEN", "DEN", "KC", "LAC", "LV", "DAL", "NYG", "PHI", "WAS",
   "CHI", "DET", "GB", "MIN", "ATL", "CAR", "NO", "TB", "ARI", "LAR", "SF", "SEA",
 ];
+const SPIN_YEARS = Array.from({ length: 10 }, (_, i) => 2016 + i);
 
-function formatTime(ms: number): string {
-  const totalSeconds = ms / 1000;
-  if (totalSeconds < 60) return `${totalSeconds.toFixed(1)}s`;
-  const m = Math.floor(totalSeconds / 60);
-  const s = Math.round(totalSeconds % 60);
-  return `${m}m ${String(s).padStart(2, "0")}s`;
+function slotLabel(team: string, season: number): string {
+  return `${team} · ${season}`;
+}
+function randomSpinLabel(): string {
+  return slotLabel(
+    SPIN_TEAMS[Math.floor(Math.random() * SPIN_TEAMS.length)],
+    SPIN_YEARS[Math.floor(Math.random() * SPIN_YEARS.length)],
+  );
 }
 
-export function PlayPicker({
-  seasons,
-  initialSeason,
-  initialSlots,
-}: {
-  seasons: number[];
-  initialSeason: number;
-  initialSlots: PlaySlot[];
-}) {
-  const router = useRouter();
+/** Seconds.milliseconds, e.g. 12.345s (or 1m 05.123s past a minute). */
+function formatTime(ms: number): string {
+  const totalSeconds = ms / 1000;
+  if (totalSeconds < 60) return `${totalSeconds.toFixed(3)}s`;
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}m ${s.toFixed(3).padStart(6, "0")}s`;
+}
+
+export function PlayPicker({ initialSlots, multiSeason }: { initialSlots: PlaySlot[]; multiSeason: boolean }) {
   const [mode, setMode] = useState<Mode>("easy");
-  const [season, setSeason] = useState(initialSeason);
   const [slots, setSlots] = useState<PlaySlot[]>(initialSlots);
   const [step, setStep] = useState(0);
   const [status, setStatus] = useState<StepStatus>("pending");
-  const [spinLabel, setSpinLabel] = useState(SPIN_TEAMS[0]);
+  const [spinLabel, setSpinLabel] = useState(randomSpinLabel());
   const [picks, setPicks] = useState<Record<number, Pick>>({});
   const [justPicked, setJustPicked] = useState<string | null>(null);
   const [yearUsed, setYearUsed] = useState(false);
   const [teamUsed, setTeamUsed] = useState(false);
+  const [respinNote, setRespinNote] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<RevealState | null>(null);
   const [pending, setPending] = useState(false);
@@ -69,7 +71,7 @@ export function PlayPicker({
   }, []);
 
   const current = slots[step];
-  const canYearRespin = mode === "easy" && !yearUsed && seasons.length > 1;
+  const canYearRespin = mode === "easy" && !yearUsed && multiSeason;
   const canTeamRespin = mode === "easy" && !teamUsed;
 
   function resetGame(nextSlots: PlaySlot[]) {
@@ -77,35 +79,31 @@ export function PlayPicker({
     setSlots(nextSlots);
     setStep(0);
     setStatus("pending");
-    setSpinLabel(SPIN_TEAMS[0]);
+    setSpinLabel(randomSpinLabel());
     setPicks({});
     setJustPicked(null);
     setYearUsed(false);
     setTeamUsed(false);
+    setRespinNote(undefined);
     setResult(null);
     setElapsedMs(0);
     startedAt.current = null;
   }
 
-  async function changeSeason(next: number) {
-    setSeason(next);
-    setBusy(true);
-    const nextSlots = await rollBoard(next);
-    resetGame(nextSlots);
-    setBusy(false);
-  }
-
-  function spin() {
-    if (!current) return;
-    if (startedAt.current === null) startedAt.current = performance.now(); // clock starts on the first spin
+  function spin(target?: PlaySlot) {
+    const slot = target ?? current;
+    if (!slot) return;
+    // Clock starts on the very first spin of the game.
+    if (startedAt.current === null) startedAt.current = performance.now(); // eslint-disable-line react-hooks/purity
+    setRespinNote(undefined);
     setStatus("spinning");
     let ticks = 0;
     spinTimer.current = setInterval(() => {
-      setSpinLabel(SPIN_TEAMS[Math.floor(Math.random() * SPIN_TEAMS.length)]);
+      setSpinLabel(randomSpinLabel());
       ticks += 1;
       if (ticks > 10) {
         if (spinTimer.current) clearInterval(spinTimer.current);
-        setSpinLabel(current.team);
+        setSpinLabel(slotLabel(slot.team, slot.season));
         setStatus("revealed");
       }
     }, 80);
@@ -119,20 +117,18 @@ export function PlayPicker({
     setTimeout(() => {
       setJustPicked(null);
       if (step + 1 < slots.length) {
-        setStep((s) => s + 1);
-        setStatus("pending");
-        setSpinLabel(SPIN_TEAMS[0]);
+        const nextStep = step + 1;
+        setStep(nextStep);
+        spin(slots[nextStep]); // auto-spin the next slot — no manual spin between picks
       } else {
-        // Fifth (final) pick — reveal immediately, no separate button.
-        void reveal(nextPicks);
+        void reveal(nextPicks); // fifth pick — straight to the results
       }
     }, 450);
   }
 
   async function reveal(finalPicks: Record<number, Pick>) {
     setPending(true);
-    // Only ever reached from the pick handler, never during render.
-    // eslint-disable-next-line react-hooks/purity
+    // eslint-disable-next-line react-hooks/purity -- only reached from the pick handler, never render
     const durationMs = startedAt.current !== null ? Math.round(performance.now() - startedAt.current) : 0;
     const lineup: SeasonPick[] = slots.map((_, i) => ({
       season: finalPicks[i].season,
@@ -157,7 +153,10 @@ export function PlayPicker({
     setBusy(true);
     const slot = await rollTeam(current.season, slots.map((s) => s.team));
     setBusy(false);
-    if (!slot) return;
+    if (!slot) {
+      setRespinNote(`No other team available in ${current.season}.`);
+      return;
+    }
     setTeamUsed(true);
     replaceCurrentSlot(slot);
   }
@@ -165,53 +164,43 @@ export function PlayPicker({
   async function respinYear() {
     if (!current || busy) return;
     setBusy(true);
-    const slot = await rollYear(current.season);
+    const slot = await rollYear(current.team, current.season);
     setBusy(false);
-    if (!slot) return;
+    if (!slot) {
+      setRespinNote(`No other loaded season for ${current.team}.`);
+      return;
+    }
     setYearUsed(true);
     replaceCurrentSlot(slot);
   }
 
   function replaceCurrentSlot(slot: PlaySlot) {
     if (spinTimer.current) clearInterval(spinTimer.current);
+    setRespinNote(undefined);
     setSlots((prev) => prev.map((s, i) => (i === step ? slot : s)));
     setPicks((prev) => {
       const next = { ...prev };
       delete next[step];
       return next;
     });
-    setSpinLabel(slot.team);
+    setSpinLabel(slotLabel(slot.team, slot.season));
     setStatus("revealed");
   }
 
-  function playAgain() {
-    resetGame(initialSlots);
-    setSeason(initialSeason);
-    router.refresh();
+  async function playAgain() {
+    setBusy(true);
+    const board = await rollRandomBoard();
+    resetGame(board);
+    setBusy(false);
   }
 
   if (result?.players && result.scored) {
-    return (
-      <RevealCard
-        result={result}
-        mode={mode}
-        elapsedMs={elapsedMs}
-        onPlayAgain={playAgain}
-      />
-    );
+    return <RevealCard result={result} mode={mode} elapsedMs={elapsedMs} onPlayAgain={playAgain} busy={busy} />;
   }
 
   return (
     <div className="space-y-4">
-      <Controls
-        seasons={seasons}
-        season={season}
-        mode={mode}
-        busy={busy}
-        onSeason={changeSeason}
-        onMode={setMode}
-      />
-
+      <ModeToggle mode={mode} onMode={setMode} />
       <Progress slots={slots} picks={picks} step={step} />
 
       <Card className="animate-pop-in" key={`${step}-${current?.team}-${current?.season}`}>
@@ -221,15 +210,15 @@ export function PlayPicker({
           </CardTitle>
           {status !== "pending" ? (
             <span className={status === "spinning" ? "font-mono text-sm font-bold text-violet-300" : "font-mono text-sm font-bold text-foreground"}>
-              {status === "revealed" && current ? `${spinLabel} · ${current.season}` : spinLabel}
+              {spinLabel}
             </span>
           ) : null}
         </div>
 
         {status === "pending" ? (
           <div className="mt-4 flex flex-col items-center gap-3 py-6">
-            <p className="text-sm text-muted">Spin to find out who you&apos;re picking from.</p>
-            <Button size="lg" onClick={spin} disabled={busy || pending || !current}>
+            <p className="text-sm text-muted">Spin to draw a random team and year.</p>
+            <Button size="lg" onClick={() => spin()} disabled={busy || pending || !current}>
               🎲 Spin
             </Button>
           </div>
@@ -282,6 +271,7 @@ export function PlayPicker({
                 ) : null}
               </div>
             ) : null}
+            {respinNote ? <p className="pt-1 text-sm text-muted">{respinNote}</p> : null}
           </div>
         ) : null}
       </Card>
@@ -303,11 +293,13 @@ function RevealCard({
   mode,
   elapsedMs,
   onPlayAgain,
+  busy,
 }: {
   result: RevealState;
   mode: Mode;
   elapsedMs: number;
   onPlayAgain: () => void;
+  busy: boolean;
 }) {
   const players = result.players!;
   const scored = result.scored!;
@@ -384,7 +376,7 @@ function RevealCard({
       ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button variant="secondary" onClick={onPlayAgain}>
+        <Button variant="secondary" onClick={onPlayAgain} disabled={busy}>
           Play again
         </Button>
         <Link href="/play/leaderboard">
@@ -395,43 +387,12 @@ function RevealCard({
   );
 }
 
-function Controls({
-  seasons,
-  season,
-  mode,
-  busy,
-  onSeason,
-  onMode,
-}: {
-  seasons: number[];
-  season: number;
-  mode: Mode;
-  busy: boolean;
-  onSeason: (s: number) => void;
-  onMode: (m: Mode) => void;
-}) {
+function ModeToggle({ mode, onMode }: { mode: Mode; onMode: (m: Mode) => void }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      {seasons.length > 1 ? (
-        <label className="flex items-center gap-2 text-sm text-muted">
-          Season
-          <select
-            value={season}
-            disabled={busy}
-            onChange={(e) => onSeason(Number(e.target.value))}
-            className="rounded-xl border border-border bg-surface-2 px-3 py-1.5 text-sm font-semibold text-foreground disabled:opacity-50"
-          >
-            {seasons.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : (
-        <span />
-      )}
-
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-sm text-muted">
+        {mode === "easy" ? "Easy — one team + one year respin." : "Hard — no respins."}
+      </span>
       <div className="inline-flex rounded-xl border border-border bg-surface-2 p-0.5 text-sm">
         {(["hard", "easy"] as const).map((m) => (
           <button

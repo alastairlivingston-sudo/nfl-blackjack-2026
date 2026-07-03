@@ -337,6 +337,14 @@ export async function countFasterGeneratorScores(mode: string, durationMs: numbe
   return Number(row?.n ?? 0);
 }
 
+/** When the leaderboard was last recomputed (max computedAt), or null if it never has been. */
+export async function getStatsRefreshedAt(): Promise<Date | null> {
+  const [row] = await db()
+    .select({ at: sql<string | null>`max(${leaderboard.computedAt})` })
+    .from(leaderboard);
+  return row?.at ? new Date(row.at) : null;
+}
+
 export interface Entrant {
   id: string;
   email: string;

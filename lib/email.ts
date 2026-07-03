@@ -1,25 +1,67 @@
 import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-/** Direct Resend send for one-off notifications (feedback digests). Sign-in is Google OAuth, not email. */
-export async function sendFeedbackDigest(input: { email: string | null; message: string; context: string | null }) {
+/**
+ * One place to send a plain-text notification. Prefers **Gmail** (an app
+ * password on a Google account — no domain to verify) when `GMAIL_USER` +
+ * `GMAIL_APP_PASSWORD` are set; otherwise falls back to Resend if
+ * `AUTH_RESEND_KEY` is set. Returns false (a no-op) when neither is configured,
+ * so callers degrade gracefully. Sign-in itself is Google OAuth, not email.
+ */
+async function sendMail(opts: { to: string | string[]; subject: string; text: string }): Promise<boolean> {
+  const gmailUser = process.env.GMAIL_USER;
+  const gmailPass = process.env.GMAIL_APP_PASSWORD;
+  if (gmailUser && gmailPass) {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: gmailUser, pass: gmailPass },
+    });
+    // Gmail only lets you send as the authenticated account (or a verified
+    // alias), so the From is the Gmail address regardless of AUTH_EMAIL_FROM.
+    await transporter.sendMail({
+      from: `Touchdown Blackjack <${gmailUser}>`,
+      to: opts.to,
+      subject: opts.subject,
+      text: opts.text,
+    });
+    return true;
+  }
+
   const apiKey = process.env.AUTH_RESEND_KEY;
-  const to = process.env.FEEDBACK_NOTIFY_EMAIL;
-  if (!apiKey || !to) return; // not configured — feedback is still saved to the DB
+  if (apiKey) {
+    const resend = new Resend(apiKey);
+    await resend.emails.send({
+      from: process.env.AUTH_EMAIL_FROM ?? "Touchdown Blackjack <onboarding@resend.dev>",
+      to: opts.to,
+      subject: opts.subject,
+      text: opts.text,
+    });
+    return true;
+  }
 
-  const resend = new Resend(apiKey);
-  await resend.emails.send({
-    from: process.env.AUTH_EMAIL_FROM ?? "Touchdown Blackjack <no-reply@touchdownblackjack26.app>",
-    to,
-    subject: "New feedback — Touchdown Blackjack",
-    text: [
-      input.email ? `From: ${input.email}` : "From: (anonymous)",
-      input.context ? `Page: ${input.context}` : null,
-      "",
-      input.message,
-    ]
-      .filter(Boolean)
-      .join("\n"),
-  });
+  return false; // not configured — caller no-ops
+}
+
+/** Notifies the inbox when someone leaves feedback (feedback is still saved to the DB regardless). */
+export async function sendFeedbackDigest(input: { email: string | null; message: string; context: string | null }) {
+  const to = process.env.FEEDBACK_NOTIFY_EMAIL ?? process.env.GMAIL_USER;
+  if (!to) return;
+
+  const text = [
+    input.email ? `From: ${input.email}` : "From: (anonymous)",
+    input.context ? `Page: ${input.context}` : null,
+    "",
+    input.message,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  try {
+    await sendMail({ to, subject: "New feedback — Touchdown Blackjack", text });
+  } catch (err) {
+    // A failed notification must never fail the user's feedback submission.
+    console.error("Feedback notification failed", err);
+  }
 }
 
 /**
@@ -30,18 +72,16 @@ export async function sendFeedbackDigest(input: { email: string | null; message:
  * original error.
  */
 export async function sendCronFailureAlert(error: unknown): Promise<void> {
-  const apiKey = process.env.AUTH_RESEND_KEY;
   const admins = (process.env.ADMIN_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim())
     .filter(Boolean);
-  if (!apiKey || admins.length === 0) return;
+  const to = admins.length > 0 ? admins : process.env.GMAIL_USER ? [process.env.GMAIL_USER] : [];
+  if (to.length === 0) return;
 
   try {
-    const resend = new Resend(apiKey);
-    await resend.emails.send({
-      from: process.env.AUTH_EMAIL_FROM ?? "Touchdown Blackjack <no-reply@touchdownblackjack26.app>",
-      to: admins,
+    await sendMail({
+      to,
       subject: "⚠️ Stats refresh cron failed — Touchdown Blackjack",
       text: `The daily stats refresh job threw:\n\n${error instanceof Error ? error.stack ?? error.message : String(error)}`,
     });
