@@ -1,7 +1,10 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Button, Card, CardTitle, CardSubtitle, Container } from "@/design";
 import { auth } from "@/auth";
+import { getMobilePlatform, isInAppBrowser } from "@/lib/in-app-browser";
 import { signInWithGoogle } from "./actions";
+import { InAppBrowserNotice } from "./InAppBrowserNotice";
 
 function GoogleLogo() {
   return (
@@ -33,20 +36,35 @@ export default async function LoginPage() {
   const session = await auth();
   if (session?.user?.email) redirect("/entry");
 
+  // Google OAuth can't complete inside embedded webviews (Twitter/X, Facebook,
+  // etc.) — it dies at the callback and Auth.js shows its generic server error.
+  // Detect that up front and steer the user to their real browser instead of
+  // handing them a button that's guaranteed to fail.
+  const hdrs = await headers();
+  const ua = hdrs.get("user-agent");
+  const inAppBrowser = isInAppBrowser(ua);
+  const proto = hdrs.get("x-forwarded-proto") ?? "https";
+  const host = hdrs.get("host") ?? "";
+  const loginUrl = host ? `${proto}://${host}/login` : "/login";
+
   return (
     <Container className="py-8">
       <Card>
         <CardTitle>Sign in</CardTitle>
         <CardSubtitle>Use your Google account — no password to remember.</CardSubtitle>
 
-        <form action={signInWithGoogle} className="mt-4">
-          <Button type="submit" variant="secondary" className="w-full">
-            <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-white">
-              <GoogleLogo />
-            </span>
-            Continue with Google
-          </Button>
-        </form>
+        {inAppBrowser ? (
+          <InAppBrowserNotice url={loginUrl} platform={getMobilePlatform(ua)} />
+        ) : (
+          <form action={signInWithGoogle} className="mt-4">
+            <Button type="submit" variant="secondary" className="w-full">
+              <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-white">
+                <GoogleLogo />
+              </span>
+              Continue with Google
+            </Button>
+          </form>
+        )}
       </Card>
     </Container>
   );
