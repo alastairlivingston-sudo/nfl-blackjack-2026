@@ -22,5 +22,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
+    // Replace Auth.js's cryptic default "Server error / problem with the server
+    // configuration" page. The dominant real-world cause here is users arriving
+    // in an embedded webview (Twitter/X, Facebook, …) where Google OAuth can't
+    // complete; our page explains that and points them to their real browser.
+    error: "/auth/error",
   },
 });
