@@ -1,7 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { auth } from "@/auth";
+import { isAdminEmail } from "@/lib/admin";
 import { Card, CardTitle, CardSubtitle, Container } from "@/design";
 import { getGeneratorLeaderboard, type GeneratorScoreRow } from "@/lib/db/queries";
+import { DeleteScoreButton } from "./DeleteScoreButton";
 
 export const metadata: Metadata = {
   title: "21 Generator Leaderboard · Touchdown Blackjack",
@@ -19,10 +22,12 @@ function formatTime(ms: number): string {
 }
 
 export default async function GeneratorLeaderboardPage() {
-  const [easy, hard] = await Promise.all([
+  const [easy, hard, session] = await Promise.all([
     getGeneratorLeaderboard("easy"),
     getGeneratorLeaderboard("hard"),
+    auth(),
   ]);
+  const isAdmin = isAdminEmail(session?.user?.email);
 
   return (
     <Container className="space-y-4 py-8">
@@ -37,13 +42,23 @@ export default async function GeneratorLeaderboardPage() {
         </CardSubtitle>
       </Card>
 
-      <Board title="Easy mode" subtitle="With respins." rows={easy} />
-      <Board title="Hard mode" subtitle="No respins — pure jeopardy." rows={hard} />
+      <Board title="Easy mode" subtitle="With respins." rows={easy} isAdmin={isAdmin} />
+      <Board title="Hard mode" subtitle="No respins — pure jeopardy." rows={hard} isAdmin={isAdmin} />
     </Container>
   );
 }
 
-function Board({ title, subtitle, rows }: { title: string; subtitle: string; rows: GeneratorScoreRow[] }) {
+function Board({
+  title,
+  subtitle,
+  rows,
+  isAdmin,
+}: {
+  title: string;
+  subtitle: string;
+  rows: GeneratorScoreRow[];
+  isAdmin: boolean;
+}) {
   return (
     <Card>
       <CardTitle>{title}</CardTitle>
@@ -61,7 +76,10 @@ function Board({ title, subtitle, rows }: { title: string; subtitle: string; row
                 <span className="w-6 font-mono font-bold tabular-nums text-muted">{i + 1}</span>
                 <span className="font-semibold text-foreground">{r.name}</span>
               </span>
-              <span className="font-mono font-bold tabular-nums text-foreground">{formatTime(r.durationMs)}</span>
+              <span className="flex items-center gap-3">
+                <span className="font-mono font-bold tabular-nums text-foreground">{formatTime(r.durationMs)}</span>
+                {isAdmin ? <DeleteScoreButton id={r.id} name={r.name} /> : null}
+              </span>
             </li>
           ))}
         </ol>

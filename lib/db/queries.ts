@@ -337,6 +337,11 @@ export async function countFasterGeneratorScores(mode: string, durationMs: numbe
   return Number(row?.n ?? 0);
 }
 
+/** Remove one run from the generator hall of fame by id (admin-only — see app/play/leaderboard/actions.ts). */
+export async function deleteGeneratorScore(id: string): Promise<void> {
+  await db().delete(generatorScores).where(eq(generatorScores.id, id));
+}
+
 /** When the leaderboard was last recomputed (max computedAt), or null if it never has been. */
 export async function getStatsRefreshedAt(): Promise<Date | null> {
   const [row] = await db()

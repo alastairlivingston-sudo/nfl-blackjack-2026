@@ -68,6 +68,7 @@ import {
   insertGeneratorScore,
   getGeneratorLeaderboard,
   countFasterGeneratorScores,
+  deleteGeneratorScore,
 } from "./queries";
 import {
   computeLeaderboard,
@@ -410,4 +411,15 @@ test("MY3: generator leaderboard ranks by speed and is isolated per mode", async
   // A 15s run would sit behind only the 12s run -> rank 2.
   assert.equal(await countFasterGeneratorScores("easy", 15000), 1, "one easy run is strictly faster than 15s");
   assert.equal(await countFasterGeneratorScores("easy", 10000), 0, "nothing faster than 10s -> would be #1");
+
+  // Admins can drop a single run without touching the rest of the board.
+  const mid = easy.find((r) => r.name === "Mid")!;
+  await deleteGeneratorScore(mid.id);
+  const afterDelete = await getGeneratorLeaderboard("easy");
+  assert.deepEqual(
+    afterDelete.map((r) => r.name),
+    ["Fast", "Slow"],
+    "only the targeted run is removed; the others remain",
+  );
+  assert.deepEqual((await getGeneratorLeaderboard("hard")).map((r) => r.name), ["HardOnly"], "other modes untouched");
 });
