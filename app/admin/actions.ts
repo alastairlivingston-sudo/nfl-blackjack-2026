@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { ingestSeason, ingestHistoricalSeason, computeLeaderboard } from "@/lib/jobs/refresh";
 import { sendCronFailureAlert } from "@/lib/email";
-import { setFeedbackStatus, type FeedbackStatus } from "@/lib/db/queries";
+import { setFeedbackStatus, deleteGeneratorScore, type FeedbackStatus } from "@/lib/db/queries";
 import { currentSeason, PLAY_SEASON, PLAY_SEASON_MIN } from "@/lib/season";
 
 export interface RefreshState {
@@ -26,6 +26,33 @@ export async function updateFeedbackStatus(id: string, status: FeedbackStatus): 
   console.log(`[admin] ${admin} set feedback ${id} -> ${status}`);
   await setFeedbackStatus(id, status);
   revalidatePath("/admin");
+}
+
+export interface DeleteScoreState {
+  error?: string;
+  ok?: boolean;
+}
+
+/**
+ * Removes a single run from the 21 Generator speed leaderboard
+ * (generator_scores) — one entry at a time, e.g. someone who'd rather not be
+ * listed. Admin-only; returns an error string instead of throwing so the UI
+ * can show visible feedback on a phone.
+ */
+export async function removeGeneratorScore(id: string): Promise<DeleteScoreState> {
+  let admin: string;
+  try {
+    admin = await requireAdmin();
+  } catch {
+    return { error: "Not authorized." };
+  }
+  if (!id) return { error: "Missing score id." };
+
+  console.log(`[admin] ${admin} deleted generator score ${id}`);
+  await deleteGeneratorScore(id);
+  revalidatePath("/admin");
+  revalidatePath("/play/leaderboard");
+  return { ok: true };
 }
 
 export interface IngestSeasonState {

@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { isAdminEmail } from "@/lib/admin";
-import { getAdminStats, listFeedback, listPlaySeasons } from "@/lib/db/queries";
+import { getAdminStats, getGeneratorLeaderboard, listFeedback, listPlaySeasons } from "@/lib/db/queries";
 import { isLocked, lockAt } from "@/lib/lock";
 import { PLAY_SEASON, PLAY_SEASON_MIN } from "@/lib/season";
 import { Badge, Card, CardTitle, CardSubtitle, Container } from "@/design";
 import { RefreshButton } from "./RefreshButton";
 import { HistoryBackfill } from "./HistoryBackfill";
 import { FeedbackStatusSelect } from "./FeedbackStatusSelect";
+import { GeneratorScoreList } from "./GeneratorScoreList";
 
 // Matches the cron route's budget — the manual "refresh now" button calls the
 // same ingestSeason job, which without this falls back to Vercel's default
@@ -22,6 +23,10 @@ export default async function AdminPage() {
   const locked = isLocked();
   const lockTime = lockAt();
   const feedbackRows = await listFeedback();
+  const [easyScores, hardScores] = await Promise.all([
+    getGeneratorLeaderboard("easy"),
+    getGeneratorLeaderboard("hard"),
+  ]);
 
   // Past seasons the 21 Generator can offer, and which are already loaded.
   const pastSeasons = Array.from(
@@ -68,6 +73,26 @@ export default async function AdminPage() {
         </CardSubtitle>
         <div className="mt-3">
           <HistoryBackfill seasons={pastSeasons} loadedInitial={loadedSeasons} />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>21 Generator leaderboard</CardTitle>
+        <CardSubtitle>
+          Remove an individual run from the speed hall of fame (e.g. someone who&apos;d rather not be
+          listed). Deletes one entry at a time — tap Remove, then Confirm. This is the only place runs
+          can be removed; the public <span className="text-foreground">/play/leaderboard</span> has no
+          controls.
+        </CardSubtitle>
+        <div className="mt-4 space-y-4">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Easy mode</p>
+            <GeneratorScoreList rows={easyScores} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">Hard mode</p>
+            <GeneratorScoreList rows={hardScores} />
+          </div>
         </div>
       </Card>
 
