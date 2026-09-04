@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { isAdminEmail } from "@/lib/admin";
-import { ingestSeason, ingestHistoricalSeason, computeLeaderboard } from "@/lib/jobs/refresh";
+import {
+  ingestSeason,
+  ingestHistoricalSeason,
+  computeLeaderboard,
+  refreshRoster,
+} from "@/lib/jobs/refresh";
 import { sendCronFailureAlert } from "@/lib/email";
 import { setFeedbackStatus, deleteGeneratorScore, type FeedbackStatus } from "@/lib/db/queries";
 import { currentSeason, PLAY_SEASON, PLAY_SEASON_MIN } from "@/lib/season";
@@ -84,6 +89,37 @@ export async function ingestPastSeason(season: number): Promise<IngestSeasonStat
   } catch (err) {
     console.error(`Season ${season} backfill failed`, err);
     return { error: "Load failed — it may have timed out; click again to resume." };
+  }
+}
+
+export interface RosterRefreshState {
+  error?: string;
+  rostered?: number;
+  added?: number;
+  deactivated?: number;
+}
+
+/**
+ * Pulls today's NFL rosters into `players` on demand — the same additive job
+ * the nightly cron runs (lib/jobs/refresh.ts#refreshRoster), for when a signing
+ * needs to be pickable before 09:00 UTC. Never deletes a row, so it can't
+ * invalidate a saved lineup.
+ */
+export async function refreshRosterNow(): Promise<RosterRefreshState> {
+  const admin = await requireAdmin();
+  console.log(`[admin] ${admin} triggered manual roster refresh`);
+
+  try {
+    const result = await refreshRoster();
+    // /api/players is cached for 15 min; bust it so the picker sees the new
+    // pool immediately rather than on the next revalidation.
+    revalidatePath("/api/players");
+    revalidatePath("/teams");
+    revalidatePath("/admin");
+    return result;
+  } catch (err) {
+    console.error("Manual roster refresh failed", err);
+    return { error: "Roster refresh failed — check logs." };
   }
 }
 

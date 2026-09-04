@@ -50,36 +50,87 @@ export interface DumpPlayer {
   searchName: string;
 }
 
+/** A skill-position player currently carried on an NFL roster. */
+export interface RosterPlayer extends DumpPlayer {
+  team: string;
+}
+
 /**
- * The full Sleeper player dump, filtered to the pickable positions (QB/RB/WR/TE)
- * regardless of active status — unlike scripts/import-players.ts, which also
- * requires a current NFL team. The 21 Generator's historical seasons need
- * players who have since retired/moved on (e.g. a 2016 scorer), so this keeps
- * *any* skill-position player Sleeper knows about; the per-season team comes
- * from fetchSeasonTeams, not the live roster. `team` is intentionally dropped.
+ * Floor for a plausible league-wide skill-position roster. 32 teams carry
+ * ~20-25 QB/RB/WR/TE each in-season (more in camp), so a payload under this is
+ * a broken/partial Sleeper response, not a real transaction day. `refreshRoster`
+ * relies on this: it deactivates everyone missing from the returned roster, so
+ * a truncated payload without this guard would empty the pickable pool.
  */
-export async function fetchPlayers(): Promise<DumpPlayer[]> {
+const MIN_ROSTERED = 400;
+
+type RawDumpPlayer = {
+  player_id: string;
+  full_name?: string;
+  first_name?: string;
+  last_name?: string;
+  position: string | null;
+  team?: string | null;
+  status?: string | null;
+};
+
+async function fetchDump(): Promise<RawDumpPlayer[]> {
   const res = await fetch(SLEEPER_PLAYERS_URL, { signal: AbortSignal.timeout(30_000) });
   if (!res.ok) {
     throw new Error(`Sleeper players request failed: ${res.status} ${res.statusText}`);
   }
-  const raw: Record<
-    string,
-    { player_id: string; full_name?: string; first_name?: string; last_name?: string; position: string | null }
-  > = await res.json();
+  const raw: Record<string, RawDumpPlayer> = await res.json();
+  return Object.values(raw);
+}
 
+function toDumpPlayer(p: RawDumpPlayer): DumpPlayer | null {
+  if (!p.position || !ELIGIBLE_POSITIONS.has(p.position)) return null;
+  const fullName = p.full_name ?? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim();
+  if (!fullName) return null;
+  return { id: p.player_id, fullName, position: p.position, searchName: fullName.toLowerCase() };
+}
+
+/**
+ * The full Sleeper player dump, filtered to the pickable positions (QB/RB/WR/TE)
+ * regardless of active status — unlike `fetchRoster`, which also requires a
+ * current NFL team. The 21 Generator's historical seasons need players who have
+ * since retired/moved on (e.g. a 2016 scorer), so this keeps *any* skill-position
+ * player Sleeper knows about; the per-season team comes from fetchSeasonTeams,
+ * not the live roster. `team` is intentionally dropped.
+ */
+export async function fetchPlayers(): Promise<DumpPlayer[]> {
   const players: DumpPlayer[] = [];
-  for (const p of Object.values(raw)) {
-    if (!p.position || !ELIGIBLE_POSITIONS.has(p.position)) continue;
-    const fullName = p.full_name ?? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim();
-    if (!fullName) continue;
-    players.push({ id: p.player_id, fullName, position: p.position, searchName: fullName.toLowerCase() });
+  for (const raw of await fetchDump()) {
+    const p = toDumpPlayer(raw);
+    if (p) players.push(p);
   }
   if (players.length < 300) {
     // Sanity guard: Sleeper's schema/status values have changed before.
     throw new Error(`Only found ${players.length} players — Sleeper response shape may have changed. Aborting.`);
   }
   return players;
+}
+
+/**
+ * The pickable pool as it stands *today*: active QB/RB/WR/TE currently on an
+ * NFL roster (anyone who can score a non-passing TD). This is the live view
+ * that moves with signings, trades and cutdowns — `refreshRoster` upserts it
+ * into `players` nightly, so it must never return a partial list (see
+ * MIN_ROSTERED). Sorted by name so callers can write it out deterministically.
+ */
+export async function fetchRoster(): Promise<RosterPlayer[]> {
+  const roster: RosterPlayer[] = [];
+  for (const raw of await fetchDump()) {
+    if (!raw.team || raw.status !== "Active") continue;
+    const p = toDumpPlayer(raw);
+    if (p) roster.push({ ...p, team: raw.team });
+  }
+  if (roster.length < MIN_ROSTERED) {
+    throw new Error(
+      `Only found ${roster.length} rostered players (expected >= ${MIN_ROSTERED}) — Sleeper response looks partial. Aborting before touching the pickable pool.`,
+    );
+  }
+  return roster.sort((a, b) => a.fullName.localeCompare(b.fullName));
 }
 
 const SLEEPER_GRAPHQL = "https://sleeper.com/graphql";
