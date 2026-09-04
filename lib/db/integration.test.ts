@@ -69,12 +69,14 @@ import {
   getGeneratorLeaderboard,
   countFasterGeneratorScores,
   deleteGeneratorScore,
+  listPickablePlayers,
 } from "./queries";
 import {
   computeLeaderboard,
   ingestWeek,
   ingestSeason,
   ingestHistoricalSeason,
+  refreshRoster,
 } from "../jobs/refresh";
 
 async function seedStat(
@@ -422,4 +424,113 @@ test("MY3: generator leaderboard ranks by speed and is isolated per mode", async
     "only the targeted run is removed; the others remain",
   );
   assert.deepEqual((await getGeneratorLeaderboard("hard")).map((r) => r.name), ["HardOnly"], "other modes untouched");
+});
+
+test("RS1: refreshRoster is additive — signings/trades land, cut players keep their row, picks and play_team survive", async () => {
+  const realFetch = globalThis.fetch;
+
+  // p1 is picked by the E1 entrant, has 2025 stats, and PLAY1 froze his 2025
+  // team as SF while trading him to KC for the live season. He's cut here.
+  // p2 is traded. n1 is a brand-new signing. h1 is a retired historical scorer
+  // (imported inactive by MY2) who must stay inactive and un-resurrected.
+  const roster: Record<string, unknown> = {
+    p2: { player_id: "p2", full_name: "Bravo Wide", position: "WR", team: "NYG", status: "Active" },
+    n1: { player_id: "n1", full_name: "November Wide", position: "WR", team: "WAS", status: "Active" },
+    // Not rostered: has no team, so must not enter the pickable pool.
+    fa1: { player_id: "fa1", full_name: "Foxtrot Free", position: "RB", team: null, status: "Active" },
+  };
+  // fetchRoster refuses a payload under MIN_ROSTERED (400) so a truncated
+  // Sleeper response can never mass-deactivate the pool.
+  for (let i = 0; i < 420; i++) {
+    roster[`r${i}`] = { player_id: `r${i}`, full_name: `Rostered ${i}`, position: "RB", team: "DAL", status: "Active" };
+  }
+
+  globalThis.fetch = async (url: RequestInfo | URL) => {
+    const u = String(url);
+    if (u.endsWith("/players/nfl")) return new Response(JSON.stringify(roster), { status: 200 });
+    throw new Error(`unexpected fetch: ${u}`);
+  };
+
+  let result: Awaited<ReturnType<typeof refreshRoster>>;
+  try {
+    result = await refreshRoster();
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+
+  assert.equal(result.rostered, 422, "fa1 (no team) is excluded from the rostered pool");
+  assert.ok(result.added >= 1, "the new signing is added");
+  assert.ok(result.deactivated >= 1, "players no longer rostered are flagged");
+
+  const rows = await client.query<{ id: string; team: string | null; active: boolean; play_team: string | null }>(
+    `select id, team, active, play_team from players where id in ('p1','p2','n1','h1','fa1') order by id`,
+  );
+  const byId = new Map(rows.rows.map((r) => [r.id, r]));
+
+  // Nothing is ever deleted — the cut player keeps his row (picks FK into it).
+  assert.ok(byId.has("p1"), "a cut player's row survives the refresh");
+  assert.equal(byId.get("p1")!.active, false, "cut player drops out of the pickable pool");
+  assert.equal(byId.get("p1")!.team, null, "cut player's live team is cleared (free agent)");
+  assert.equal(byId.get("p1")!.play_team, "SF", "the frozen 2025 generator team is never touched");
+
+  assert.equal(byId.get("p2")!.team, "NYG", "a trade updates the live team");
+  assert.equal(byId.get("p2")!.active, true);
+  assert.equal(byId.get("n1")!.team, "WAS", "a new signing becomes pickable");
+  assert.equal(byId.get("h1")!.active, false, "historical-only scorers stay inactive");
+  assert.ok(!byId.has("fa1"), "an unrostered free agent is never inserted");
+
+  // The entrant's saved lineup is intact, cut player and all, and still scores.
+  const entrant = (await getEntrantByEmail("a@x.com"))!;
+  const lineup = await getLineup(entrant.id);
+  assert.equal(lineup.length, 5, "all 5 picks still resolve after the roster churn");
+  assert.ok(lineup.some((p) => p.playerId === "p1"), "the cut player is still in the saved lineup");
+
+  // Only rostered players are offered for new picks.
+  const pickable = await listPickablePlayers();
+  const pickableIds = new Set(pickable.map((p) => p.id));
+  assert.ok(pickableIds.has("n1"), "new signing is offerable");
+  assert.ok(!pickableIds.has("p1"), "cut player is not offerable");
+  assert.ok(!pickableIds.has("h1"), "historical-only player is not offerable");
+
+  // Re-running with the same roster changes nothing.
+  globalThis.fetch = async (url: RequestInfo | URL) => {
+    if (String(url).endsWith("/players/nfl")) return new Response(JSON.stringify(roster), { status: 200 });
+    throw new Error("unexpected fetch");
+  };
+  try {
+    const again = await refreshRoster();
+    assert.deepEqual(
+      { added: again.added, deactivated: again.deactivated },
+      { added: 0, deactivated: 0 },
+      "refreshRoster is idempotent",
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("RS2: a partial Sleeper payload is refused rather than emptying the pool", async () => {
+  const realFetch = globalThis.fetch;
+  const activeBefore = await client.query<{ n: number }>(
+    `select count(*)::int as n from players where active = true`,
+  );
+
+  globalThis.fetch = async (url: RequestInfo | URL) => {
+    if (String(url).endsWith("/players/nfl")) {
+      // Well-formed, but far too small to be a real league-wide roster.
+      return new Response(JSON.stringify({ x1: { player_id: "x1", full_name: "Solo Guy", position: "RB", team: "SF", status: "Active" } }), { status: 200 });
+    }
+    throw new Error("unexpected fetch");
+  };
+
+  try {
+    await assert.rejects(() => refreshRoster(), /looks partial/, "a truncated roster aborts");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+
+  const activeAfter = await client.query<{ n: number }>(
+    `select count(*)::int as n from players where active = true`,
+  );
+  assert.equal(activeAfter.rows[0].n, activeBefore.rows[0].n, "nothing was deactivated by the failed refresh");
 });

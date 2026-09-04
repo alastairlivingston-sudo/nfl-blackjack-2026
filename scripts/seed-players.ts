@@ -12,6 +12,8 @@ type EligiblePlayer = {
   team: string | null;
   position: string;
   searchName: string;
+  /** Absent in files written before the merge-based import — those were all rostered. */
+  active?: boolean;
 };
 
 const BATCH_SIZE = 200;
@@ -29,11 +31,11 @@ async function main() {
     const params: unknown[] = [];
 
     batch.forEach((p, idx) => {
-      const base = idx * 5;
+      const base = idx * 6;
       values.push(
-        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, true, $${base + 5})`,
+        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`,
       );
-      params.push(p.id, p.fullName, p.team, p.position, p.searchName);
+      params.push(p.id, p.fullName, p.team, p.position, p.active ?? true, p.searchName);
     });
 
     const text = `

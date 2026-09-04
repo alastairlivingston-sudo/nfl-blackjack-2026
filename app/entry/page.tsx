@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { Card, CardTitle, CardSubtitle, Container, PlayerRow } from "@/design";
-import { getEntrantByEmail, getEntrantPickIds, getLineup } from "@/lib/db/queries";
+import { getEntrantByEmail, getEntrantPickIds, getLineup, getPlayersByIds } from "@/lib/db/queries";
 import { isLocked } from "@/lib/lock";
 import { ProfileForm } from "./ProfileForm";
 import { PlayerPicker } from "./PlayerPicker";
@@ -48,7 +48,17 @@ export default async function EntryPage() {
     );
   }
 
+  // Resolve the saved lineup server-side rather than letting the picker look it
+  // up in the pool it fetches: a player who's since been cut is no longer in
+  // that pool, and looking him up there would silently drop him from the
+  // entrant's lineup (they'd see 4 of 5 picks, with no idea why).
   const pickIds = entrant ? await getEntrantPickIds(entrant.id) : [];
+  const picked = await getPlayersByIds(pickIds);
+  const pickedById = new Map(picked.map((p) => [p.id, p]));
+  const initialPlayers = pickIds
+    .map((id) => pickedById.get(id))
+    .filter((p) => p !== undefined)
+    .map((p) => ({ id: p.id, fullName: p.fullName, team: p.team, position: p.position }));
 
   return (
     <Container className="space-y-4 py-8">
@@ -69,7 +79,7 @@ export default async function EntryPage() {
         }
         justGivingUrl={process.env.JUSTGIVING_URL}
       />
-      {entrant ? <PlayerPicker initialPlayerIds={pickIds} /> : null}
+      {entrant ? <PlayerPicker initialPlayers={initialPlayers} /> : null}
     </Container>
   );
 }

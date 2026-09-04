@@ -1,86 +1,88 @@
 /**
- * Pulls the Sleeper player dump and writes the eligible player pool to:
- *   - public/players.json  (static, client-side typeahead — no fuzzy matching,
- *                            just prefix/substring filtering over this list)
+ * Refreshes the checked-in player pool from Sleeper's dump, writing:
+ *   - public/players.json      (the picker's build-time fallback snapshot)
  *   - drizzle/seed-players.sql (idempotent upsert, run after migrations)
  *
- * Eligible = active QB/RB/WR/TE on an NFL roster (anyone who can score a
- * non-passing TD). Run with: npm run import:players
+ * The live, always-current pool is the `players` table, refreshed nightly by
+ * lib/jobs/refresh.ts#refreshRoster and served to the picker via /api/players;
+ * this script is the offline equivalent, for seeding a fresh DB and for keeping
+ * the static fallback from drifting too far. Run with: npm run import:players
+ *
+ * **Merge, never replace.** Rostered = active QB/RB/WR/TE currently on an NFL
+ * team (anyone who can score a non-passing TD). A player who has since dropped
+ * off a roster keeps his entry with `active: false` and a null team, exactly as
+ * refreshRoster treats him in the DB — so a lineup saved before a cutdown still
+ * resolves, and the generated seed never flips a row back to pickable. Rewriting
+ * the file from the dump alone would drop ~240 players every cutdown day.
  */
-import { writeFileSync, mkdirSync } from "fs";
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
+import { fetchRoster } from "../lib/sleeper";
 
-const SLEEPER_PLAYERS_URL = "https://api.sleeper.app/v1/players/nfl";
-const ELIGIBLE_POSITIONS = new Set(["QB", "RB", "WR", "TE"]);
+const PLAYERS_JSON = "public/players.json";
+const SEED_SQL = "drizzle/seed-players.sql";
 
-type SleeperPlayer = {
-  player_id: string;
-  full_name?: string;
-  first_name?: string;
-  last_name?: string;
-  team: string | null;
-  position: string | null;
-  status: string | null;
-};
-
-type EligiblePlayer = {
+type PoolPlayer = {
   id: string;
   fullName: string;
   team: string | null;
   position: string;
   searchName: string;
+  active: boolean;
 };
 
 function sqlEscape(value: string): string {
   return value.replace(/'/g, "''");
 }
 
+function sqlText(value: string | null): string {
+  return value === null ? "NULL" : `'${sqlEscape(value)}'`;
+}
+
+function readExistingPool(): PoolPlayer[] {
+  if (!existsSync(PLAYERS_JSON)) return [];
+  const raw: (Omit<PoolPlayer, "active"> & { active?: boolean })[] = JSON.parse(
+    readFileSync(PLAYERS_JSON, "utf-8"),
+  );
+  // `active` postdates the first imports; anything written before it was, by
+  // that import's own filter, rostered at the time.
+  return raw.map((p) => ({ ...p, active: p.active ?? true }));
+}
+
 async function main() {
-  const res = await fetch(SLEEPER_PLAYERS_URL);
-  if (!res.ok) {
-    throw new Error(`Sleeper API request failed: ${res.status} ${res.statusText}`);
-  }
-  const raw: Record<string, SleeperPlayer> = await res.json();
+  const roster = await fetchRoster();
+  const rosterIds = new Set(roster.map((p) => p.id));
 
-  const eligible: EligiblePlayer[] = Object.values(raw)
-    .filter(
-      (p): p is SleeperPlayer & { position: string; team: string } =>
-        !!p.position &&
-        ELIGIBLE_POSITIONS.has(p.position) &&
-        !!p.team &&
-        p.status === "Active",
-    )
-    .map((p) => {
-      const fullName = p.full_name ?? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim();
-      return {
-        id: p.player_id,
-        fullName,
-        team: p.team,
-        position: p.position as string,
-        searchName: fullName.toLowerCase(),
-      };
-    })
-    .sort((a, b) => a.fullName.localeCompare(b.fullName));
-
-  if (eligible.length < 300) {
-    // Sanity guard: Sleeper's schema/status values have changed before.
-    throw new Error(
-      `Only found ${eligible.length} eligible players — Sleeper response shape may have changed. Aborting before overwriting players.json.`,
-    );
+  const pool = new Map<string, PoolPlayer>();
+  for (const p of readExistingPool()) {
+    // Not on a roster any more: keep the entry, drop it out of the pickable set.
+    pool.set(p.id, rosterIds.has(p.id) ? p : { ...p, team: null, active: false });
   }
+  for (const p of roster) {
+    pool.set(p.id, {
+      id: p.id,
+      fullName: p.fullName,
+      team: p.team,
+      position: p.position,
+      searchName: p.searchName,
+      active: true,
+    });
+  }
+
+  const merged = [...pool.values()].sort((a, b) => a.fullName.localeCompare(b.fullName));
 
   mkdirSync("public", { recursive: true });
-  writeFileSync("public/players.json", JSON.stringify(eligible));
+  writeFileSync(PLAYERS_JSON, JSON.stringify(merged));
 
   mkdirSync("drizzle", { recursive: true });
-  const values = eligible
+  const values = merged
     .map(
       (p) =>
-        `('${sqlEscape(p.id)}', '${sqlEscape(p.fullName)}', ${
-          p.team ? `'${sqlEscape(p.team)}'` : "NULL"
-        }, '${sqlEscape(p.position)}', true, '${sqlEscape(p.searchName)}')`,
+        `(${sqlText(p.id)}, ${sqlText(p.fullName)}, ${sqlText(p.team)}, ${sqlText(p.position)}, ${p.active}, ${sqlText(p.searchName)})`,
     )
     .join(",\n  ");
 
+  // play_team is deliberately absent: it's the frozen 2025 label the 21
+  // Generator reads and must survive every roster refresh (schema.ts).
   const sql = `-- Generated by scripts/import-players.ts — do not edit by hand.
 INSERT INTO players (id, full_name, team, position, active, search_name)
 VALUES
@@ -92,10 +94,13 @@ ON CONFLICT (id) DO UPDATE SET
   active = excluded.active,
   search_name = excluded.search_name;
 `;
-  writeFileSync("drizzle/seed-players.sql", sql);
+  writeFileSync(SEED_SQL, sql);
 
-  console.log(`Wrote ${eligible.length} eligible players to public/players.json`);
-  console.log("Wrote drizzle/seed-players.sql (run after migrations to populate the DB)");
+  const rostered = merged.filter((p) => p.active).length;
+  console.log(
+    `Wrote ${merged.length} players to ${PLAYERS_JSON} (${rostered} rostered, ${merged.length - rostered} retained but inactive)`,
+  );
+  console.log(`Wrote ${SEED_SQL} (run after migrations to populate the DB)`);
 }
 
 main().catch((err) => {

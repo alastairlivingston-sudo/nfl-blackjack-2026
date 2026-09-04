@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ingestSeason, computeLeaderboard } from "@/lib/jobs/refresh";
+import { ingestSeason, computeLeaderboard, refreshRoster, type RosterRefresh } from "@/lib/jobs/refresh";
 import { currentSeason } from "@/lib/season";
 import { sendCronFailureAlert } from "@/lib/email";
 
@@ -14,6 +14,11 @@ export const maxDuration = 60;
  * Vercel's Hobby plan only allows daily cron schedules, so this runs once a
  * day (vercel.json). Session 4 adds an admin "refresh now" button that hits
  * this same route on demand for same-day freshness during game weeks.
+ *
+ * Also refreshes the player pool (signings, trades, cutdowns) each run — see
+ * refreshRoster. That step is deliberately non-fatal: the scoreboard is the
+ * critical path, so a Sleeper roster hiccup logs and alerts but still lets the
+ * stats ingest and leaderboard compute run.
  */
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -22,10 +27,22 @@ export async function GET(request: Request) {
   }
 
   const season = currentSeason();
+
+  let roster: RosterRefresh | null = null;
+  try {
+    roster = await refreshRoster();
+    console.log(
+      `Roster refresh: ${roster.rostered} rostered, ${roster.added} added, ${roster.deactivated} deactivated`,
+    );
+  } catch (err) {
+    console.error("Roster refresh failed (continuing to stats)", err);
+    await sendCronFailureAlert(err);
+  }
+
   try {
     await ingestSeason(season);
     const entrantCount = await computeLeaderboard(season);
-    return NextResponse.json({ ok: true, season, entrantCount });
+    return NextResponse.json({ ok: true, season, entrantCount, roster });
   } catch (err) {
     console.error("Stats refresh cron failed", err);
     await sendCronFailureAlert(err);

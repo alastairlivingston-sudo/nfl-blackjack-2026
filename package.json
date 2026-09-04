@@ -11,6 +11,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "dotenv -e .env.local -- tsx lib/db/migrate.ts",
     "db:seed-players": "dotenv -e .env.local -- tsx scripts/seed-players.ts",
+    "roster:refresh": "dotenv -e .env.local -- tsx scripts/refresh-roster.ts",
     "test": "tsx --test \"lib/**/*.test.ts\"",
     "stats:ingest": "dotenv -e .env.local -- tsx scripts/ingest-stats.ts",
     "history:ingest": "dotenv -e .env.local -- tsx scripts/ingest-history.ts",

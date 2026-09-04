@@ -176,6 +176,35 @@ export async function getTeamPlayers(team: string): Promise<TeamPlayer[]> {
     .sort((a, b) => b.seasonTotal - a.seasonTotal);
 }
 
+export interface PickablePlayer {
+  id: string;
+  fullName: string;
+  team: string | null;
+  position: string;
+  searchName: string;
+}
+
+/**
+ * The pool the entry typeahead offers, straight from the DB so it moves with
+ * the nightly roster refresh (see lib/jobs/refresh.ts#refreshRoster) instead of
+ * being frozen at deploy time in `public/players.json`. `active = false` rows —
+ * players cut, retired, or only ever imported for a historical 21 Generator
+ * season — stay in the table (picks reference them) but are not offerable.
+ */
+export async function listPickablePlayers(): Promise<PickablePlayer[]> {
+  return db()
+    .select({
+      id: players.id,
+      fullName: players.fullName,
+      team: players.team,
+      position: players.position,
+      searchName: players.searchName,
+    })
+    .from(players)
+    .where(eq(players.active, true))
+    .orderBy(asc(players.fullName));
+}
+
 export interface BarePlayer {
   id: string;
   fullName: string;

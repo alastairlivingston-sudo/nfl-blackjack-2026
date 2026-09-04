@@ -6,7 +6,7 @@
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { entrants, picks, players, playerWeekStats, playerSeasonTeam, leaderboard } from "../db/schema";
-import { fetchPlayers, fetchSeasonTeams, fetchWeekStats } from "../sleeper";
+import { fetchPlayers, fetchRoster, fetchSeasonTeams, fetchWeekStats } from "../sleeper";
 import { PLAY_SEASON } from "../season";
 import { scoreLineup, rankEntrants, type PlayerTotal } from "../scoring/score";
 
@@ -43,6 +43,82 @@ export async function backfillPlayTeam(): Promise<number> {
     WHERE p.id = v.id
   `);
   return teams.size;
+}
+
+/** Rows per roster upsert statement — keeps each neon-http request modest. */
+const ROSTER_BATCH = 500;
+
+export interface RosterRefresh {
+  /** Players on an NFL roster right now — the size of the pickable pool. */
+  rostered: number;
+  /** Rostered players `players` had never seen before (rookies, new signings). */
+  added: number;
+  /** Rows flagged inactive because they're no longer rostered. Never deleted. */
+  deactivated: number;
+}
+
+/**
+ * Brings `players` in line with today's NFL rosters — new signings, trades,
+ * cutdowns, practice-squad churn — **without ever deleting a row**.
+ *
+ * Purely additive by design: `picks` FK into `players`, and both the 21
+ * Generator and every historical season lean on rows for players who are long
+ * gone. So a player who drops off an NFL roster keeps their row, their picks,
+ * their `player_week_stats` and their frozen `play_team`; they're just flagged
+ * `active = false` with a null team (schema: "null = free agent"), which drops
+ * them out of the pickable pool and the live team pages while leaving already
+ * saved lineups intact and still scoring. A player who signs back on is flipped
+ * active again by the same upsert.
+ *
+ * `play_team` is deliberately absent from the upsert's column list — it is the
+ * frozen 2025 label the 21 Generator reads, and a live-roster refresh must
+ * never touch it (see schema.ts `players.playTeam`).
+ *
+ * Idempotent: re-running with an unchanged roster is a no-op.
+ */
+export async function refreshRoster(): Promise<RosterRefresh> {
+  const roster = await fetchRoster(); // throws on a partial payload — see MIN_ROSTERED
+  const conn = db();
+
+  const known = new Set((await conn.select({ id: players.id }).from(players)).map((r) => r.id));
+
+  for (let i = 0; i < roster.length; i += ROSTER_BATCH) {
+    await conn
+      .insert(players)
+      .values(
+        roster.slice(i, i + ROSTER_BATCH).map((p) => ({
+          id: p.id,
+          fullName: p.fullName,
+          team: p.team,
+          position: p.position,
+          active: true,
+          searchName: p.searchName,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: players.id,
+        set: {
+          fullName: sql`excluded.full_name`,
+          team: sql`excluded.team`,
+          position: sql`excluded.position`,
+          active: sql`excluded.active`,
+          searchName: sql`excluded.search_name`,
+        },
+      });
+  }
+
+  const rosterIds = roster.map((p) => p.id);
+  const deactivated = await conn
+    .update(players)
+    .set({ active: false, team: null })
+    .where(and(eq(players.active, true), notInArray(players.id, rosterIds)))
+    .returning({ id: players.id });
+
+  return {
+    rostered: roster.length,
+    added: roster.filter((p) => !known.has(p.id)).length,
+    deactivated: deactivated.length,
+  };
 }
 
 export async function ingestWeek(season: number, week: number): Promise<number> {

@@ -6,6 +6,7 @@ import { isLocked, lockAt } from "@/lib/lock";
 import { PLAY_SEASON, PLAY_SEASON_MIN } from "@/lib/season";
 import { Badge, Card, CardTitle, CardSubtitle, Container } from "@/design";
 import { RefreshButton } from "./RefreshButton";
+import { RosterRefreshButton } from "./RosterRefreshButton";
 import { HistoryBackfill } from "./HistoryBackfill";
 import { FeedbackStatusSelect } from "./FeedbackStatusSelect";
 import { GeneratorScoreList } from "./GeneratorScoreList";
@@ -61,6 +62,19 @@ export default async function AdminPage() {
         <CardSubtitle>Pulls the latest Sleeper stats and recomputes the leaderboard now.</CardSubtitle>
         <div className="mt-3">
           <RefreshButton />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle>Roster refresh</CardTitle>
+        <CardSubtitle>
+          Pulls today&apos;s NFL rosters into the player pool — new signings and trades become
+          pickable, players no longer on a roster stop being offered. Runs nightly with the stats
+          cron; this is for when a move needs to land sooner. Nothing is ever deleted, so saved
+          lineups and past scoring are untouched.
+        </CardSubtitle>
+        <div className="mt-3">
+          <RosterRefreshButton />
         </div>
       </Card>
 

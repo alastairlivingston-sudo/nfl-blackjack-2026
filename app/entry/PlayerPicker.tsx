@@ -4,34 +4,49 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button, Card, CardTitle, CardSubtitle, Input, PlayerRow } from "@/design";
 import { saveLineup } from "./actions";
 
-interface PlayerOption {
+/** A player as shown in a lineup row — all the picker needs to render one. */
+export interface PickedPlayer {
   id: string;
   fullName: string;
   team: string | null;
   position: string;
-  searchName: string;
 }
 
-export function PlayerPicker({ initialPlayerIds }: { initialPlayerIds: string[] }) {
+interface PlayerOption extends PickedPlayer {
+  searchName: string;
+  /** Absent in the legacy static file; only `false` means "not pickable". */
+  active?: boolean;
+}
+
+export function PlayerPicker({ initialPlayers }: { initialPlayers: PickedPlayer[] }) {
   const [players, setPlayers] = useState<PlayerOption[]>([]);
-  const [selected, setSelected] = useState<PlayerOption[]>([]);
+  const [selected, setSelected] = useState<PickedPlayer[]>(initialPlayers);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | undefined>();
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    fetch("/players.json")
-      .then((res) => res.json())
-      .then((all: PlayerOption[]) => {
-        setPlayers(all);
-        if (initialPlayerIds.length > 0) {
-          const byId = new Map(all.map((p) => [p.id, p]));
-          setSelected(initialPlayerIds.map((id) => byId.get(id)).filter((p): p is PlayerOption => !!p));
+    let cancelled = false;
+    // /api/players is the live pool (moves with the nightly roster refresh);
+    // the static file is the build-time snapshot, used only if the route fails.
+    async function load() {
+      for (const url of ["/api/players", "/players.json"]) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const all: PlayerOption[] = await res.json();
+          if (!cancelled) setPlayers(all.filter((p) => p.active !== false));
+          return;
+        } catch {
+          // try the fallback
         }
-      });
-    // initialPlayerIds is the entrant's saved lineup, fixed for this component's lifetime.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const selectedIds = useMemo(() => new Set(selected.map((p) => p.id)), [selected]);
@@ -42,7 +57,7 @@ export function PlayerPicker({ initialPlayerIds }: { initialPlayerIds: string[] 
     return players.filter((p) => !selectedIds.has(p.id) && p.searchName.includes(q)).slice(0, 8);
   }, [players, query, selectedIds]);
 
-  function addPlayer(player: PlayerOption) {
+  function addPlayer(player: PickedPlayer) {
     if (selected.length >= 5) return;
     setSelected((prev) => [...prev, player]);
     setQuery("");
