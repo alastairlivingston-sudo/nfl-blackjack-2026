@@ -461,6 +461,14 @@ test("RS1: refreshRoster is additive — signings/trades land, cut players keep 
   assert.equal(result.rostered, 422, "fa1 (no team) is excluded from the rostered pool");
   assert.ok(result.added >= 1, "the new signing is added");
   assert.ok(result.deactivated >= 1, "players no longer rostered are flagged");
+  const flagged = result.pickedDeactivated.map((p) => p.id);
+  assert.ok(flagged.includes("p1"), "a deactivated player who's in a saved lineup is reported for review");
+  assert.equal(
+    flagged.filter((id) => id === "p1").length,
+    1,
+    "reported once however many entrants picked him",
+  );
+  assert.ok(!flagged.includes("n1"), "players still on a roster are not reported");
 
   const rows = await client.query<{ id: string; team: string | null; active: boolean; play_team: string | null }>(
     `select id, team, active, play_team from players where id in ('p1','p2','n1','h1','fa1') order by id`,
@@ -500,8 +508,8 @@ test("RS1: refreshRoster is additive — signings/trades land, cut players keep 
   try {
     const again = await refreshRoster();
     assert.deepEqual(
-      { added: again.added, deactivated: again.deactivated },
-      { added: 0, deactivated: 0 },
+      { added: again.added, deactivated: again.deactivated, picked: again.pickedDeactivated.length },
+      { added: 0, deactivated: 0, picked: 0 },
       "refreshRoster is idempotent",
     );
   } finally {

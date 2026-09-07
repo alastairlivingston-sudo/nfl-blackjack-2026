@@ -55,6 +55,14 @@ export interface RosterRefresh {
   added: number;
   /** Rows flagged inactive because they're no longer rostered. Never deleted. */
   deactivated: number;
+  /**
+   * Deactivated players who are in somebody's saved lineup. Their picks still
+   * stand and still score — nothing is deleted — but this is the signal worth
+   * eyeballing after a refresh: a genuine cut is expected, whereas an entrant's
+   * star turning up here usually means Sleeper reclassified them (see
+   * `eligiblePosition` in lib/sleeper.ts) rather than that they lost their job.
+   */
+  pickedDeactivated: { id: string; fullName: string }[];
 }
 
 /**
@@ -114,10 +122,23 @@ export async function refreshRoster(): Promise<RosterRefresh> {
     .where(and(eq(players.active, true), notInArray(players.id, rosterIds)))
     .returning({ id: players.id });
 
+  const deactivatedIds = deactivated.map((r) => r.id);
+  const picked = deactivatedIds.length
+    ? await conn
+        .select({ id: players.id, fullName: players.fullName })
+        .from(picks)
+        .innerJoin(players, eq(players.id, picks.playerId))
+        .where(inArray(picks.playerId, deactivatedIds))
+    : [];
+
   return {
     rostered: roster.length,
     added: roster.filter((p) => !known.has(p.id)).length,
     deactivated: deactivated.length,
+    // A player picked by several entrants comes back once per pick.
+    pickedDeactivated: [...new Map(picked.map((p) => [p.id, p])).values()].sort((a, b) =>
+      a.fullName.localeCompare(b.fullName),
+    ),
   };
 }
 

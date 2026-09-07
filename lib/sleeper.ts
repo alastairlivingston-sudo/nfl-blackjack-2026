@@ -70,9 +70,31 @@ type RawDumpPlayer = {
   first_name?: string;
   last_name?: string;
   position: string | null;
+  fantasy_positions?: string[] | null;
   team?: string | null;
   status?: string | null;
 };
+
+/**
+ * The QB/RB/WR/TE label to store for a player, or null if they can't be picked.
+ *
+ * Sleeper's `position` is a single *primary* label, and it doesn't always match
+ * how the player is used on offence:
+ *  - Two-way players carry their defensive label. Travis Hunter is `position:
+ *    "DB"` with `fantasy_positions: ["DB", "WR"]` and a WR depth-chart slot —
+ *    on `position` alone he silently dropped out of the pool (and out of
+ *    already-saved lineups' team labels) the first time Sleeper reclassified him.
+ *  - Fullbacks are `position: "FB"` with `fantasy_positions: ["RB"]`, yet the
+ *    likes of Juszczyk and Ingold are genuine goal-line receiving threats.
+ *
+ * So fall back to the first eligible `fantasy_positions` entry, which is
+ * Sleeper's own answer to "where does this player score from". Anyone who can
+ * plausibly score a non-passing TD on offence is pickable; nobody else is.
+ */
+function eligiblePosition(p: RawDumpPlayer): string | null {
+  if (p.position && ELIGIBLE_POSITIONS.has(p.position)) return p.position;
+  return (p.fantasy_positions ?? []).find((pos) => ELIGIBLE_POSITIONS.has(pos)) ?? null;
+}
 
 async function fetchDump(): Promise<RawDumpPlayer[]> {
   const res = await fetch(SLEEPER_PLAYERS_URL, { signal: AbortSignal.timeout(30_000) });
@@ -84,10 +106,11 @@ async function fetchDump(): Promise<RawDumpPlayer[]> {
 }
 
 function toDumpPlayer(p: RawDumpPlayer): DumpPlayer | null {
-  if (!p.position || !ELIGIBLE_POSITIONS.has(p.position)) return null;
+  const position = eligiblePosition(p);
+  if (!position) return null;
   const fullName = p.full_name ?? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim();
   if (!fullName) return null;
-  return { id: p.player_id, fullName, position: p.position, searchName: fullName.toLowerCase() };
+  return { id: p.player_id, fullName, position, searchName: fullName.toLowerCase() };
 }
 
 /**

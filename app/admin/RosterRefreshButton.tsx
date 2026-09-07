@@ -12,9 +12,16 @@ export function RosterRefreshButton() {
     setMessage(undefined);
     startTransition(async () => {
       const result = await refreshRosterNow();
+      if (result.error) {
+        setMessage(result.error);
+        return;
+      }
+      const picked = result.pickedDeactivated ?? [];
       setMessage(
-        result.error ??
-          `${result.rostered} players rostered — ${result.added} added, ${result.deactivated} no longer on a roster.`,
+        `${result.rostered} players rostered — ${result.added} added, ${result.deactivated} no longer on a roster.` +
+          (picked.length > 0
+            ? ` In saved lineups: ${picked.map((p) => p.fullName).join(", ")} — their picks still count.`
+            : ""),
       );
     });
   }

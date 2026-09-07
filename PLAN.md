@@ -92,6 +92,8 @@ fun single-player **"21 Generator"** practice mode using completed 2025 stats.
   - Wired into the **daily cron** (`/api/cron/refresh-stats`) ahead of the stats ingest, non-fatally: a Sleeper roster hiccup alerts but still lets scoring run. Also on demand via `/admin` → "Refresh rosters now", or `npm run roster:refresh`.
   - The picker now fetches **`/api/players`** (DB-backed, `active` only, 15-min cache) instead of the build-time `public/players.json`, which stays as the offline fallback — otherwise a nightly DB refresh would still never reach a browser without a redeploy. `scripts/import-players.ts` **merges** into that snapshot rather than rewriting it (a player who drops off a roster is retained with `active: false`), and `/entry` now resolves the entrant's saved picks **server-side** so a cut player can't silently vanish from their lineup editor (closes the QA E8 WARN). Regression tests: `lib/db/integration.test.ts` "RS1"/"RS2".
 
+- **Session 13 (bugfix) — two-way players and fullbacks fell out of the pool.** ✅ Eligibility keyed off Sleeper's single *primary* `position`, which isn't always where a player scores from: Sleeper reclassified **Travis Hunter** as `DB` (`fantasy_positions: ["DB", "WR"]`, WR depth-chart slot), so the nightly refresh deactivated him and nulled his team — an entrant with him in a saved lineup saw their pick listed as a free agent. Fullbacks (`position: "FB"`, `fantasy_positions: ["RB"]`) had never been pickable for the same reason, despite being goal-line threats. `lib/sleeper.ts#eligiblePosition` now falls back to the first eligible `fantasy_positions` entry and stores *that* as the player's position, so anyone Sleeper considers a fantasy QB/RB/WR/TE is pickable: +11 players (Hunter, Juszczyk, Ricard, Ingold, Luepke and other FBs). No existing row changes position, and nothing was ever lost — deactivation only clears `active`/`team`, so Hunter's row, picks and stats survived throughout and his TDs would have scored regardless (`ingestWeek` keys off the row existing, not `active`). To catch the next reclassification early, `refreshRoster` now returns **`pickedDeactivated`** — deactivated players who are in somebody's saved lineup — logged by the cron and shown on the `/admin` refresh button. Regression tests: `lib/sleeper.test.ts` "SL1"/"SL2", plus "RS1".
+
 ## Verification
 - **Per session:** acceptance criteria above; scoring engine unit-tested against fixtures; typeahead exercised on mobile viewport.
 - **End-to-end (after Session 5):** sign in via magic link → submit 5 distinct players via typeahead → confirm lock → cron ingests stats → scoreboard shows correct totals/state/rank → submit feedback → confirm email + admin view. Deploy to Vercel and smoke-test.
@@ -103,7 +105,7 @@ fun single-player **"21 Generator"** practice mode using completed 2025 stats.
 - Playoffs, push notifications, OG share images, native apps.
 
 ## Open assumptions
-- Player pool = active **QB/RB/WR/TE**.
+- Player pool = active **QB/RB/WR/TE**, judged by Sleeper's `fantasy_positions` when its primary `position` says otherwise (two-way players, fullbacks) — see Session 13.
 - Non-passing TD = rushing + receiving + return + recovery (Sleeper `rush_td + rec_td + st_td + fum_rec_td`).
 - "Each of 5 players ≥1 non-passing TD or invalid" stays a rule.
 - Win condition = **exactly 21**; if nobody hits 21, prizes are raffled (board still shows closest-to-21 ordering).
