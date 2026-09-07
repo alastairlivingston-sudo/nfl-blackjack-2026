@@ -97,6 +97,7 @@ export interface RosterRefreshState {
   rostered?: number;
   added?: number;
   deactivated?: number;
+  pickedDeactivated?: { id: string; fullName: string }[];
 }
 
 /**

@@ -34,6 +34,15 @@ export async function GET(request: Request) {
     console.log(
       `Roster refresh: ${roster.rostered} rostered, ${roster.added} added, ${roster.deactivated} deactivated`,
     );
+    if (roster.pickedDeactivated.length > 0) {
+      // Their picks still stand and still score; this is a prompt to check
+      // whether they were really cut or just reclassified by Sleeper.
+      console.warn(
+        `Roster refresh deactivated players who are in saved lineups: ${roster.pickedDeactivated
+          .map((p) => `${p.fullName} (${p.id})`)
+          .join(", ")}`,
+      );
+    }
   } catch (err) {
     console.error("Roster refresh failed (continuing to stats)", err);
     await sendCronFailureAlert(err);
