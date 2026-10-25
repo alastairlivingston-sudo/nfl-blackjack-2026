@@ -214,3 +214,15 @@ export const feedback = pgTable("feedback", {
   status: text("status").notNull().default("new"), // new | triaged | done
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * One row per throttled background job (today only "live-refresh"). The
+ * RedZone auto-refresh is driven by whoever has the scoreboard open, so many
+ * browsers poll at once; claiming the row with a conditional upsert (see
+ * queries.ts#claimJobLease) lets exactly one of them pull from Sleeper per
+ * interval and everyone else gets the fresh board for free.
+ */
+export const jobLeases = pgTable("job_leases", {
+  name: text("name").primaryKey(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull(),
+});

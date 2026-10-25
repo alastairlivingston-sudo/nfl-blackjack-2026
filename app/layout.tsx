@@ -29,6 +29,9 @@ function NavLinks({ stacked }: { stacked?: boolean }) {
       <Link href="/scoreboard" className={linkClass}>
         Scoreboard
       </Link>
+      <Link href="/players" className={linkClass}>
+        Players
+      </Link>
       <Link href="/2025" className={linkClass}>
         Last Year
       </Link>

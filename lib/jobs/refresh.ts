@@ -6,7 +6,7 @@
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { entrants, picks, players, playerWeekStats, playerSeasonTeam, leaderboard } from "../db/schema";
-import { fetchPlayers, fetchRoster, fetchSeasonTeams, fetchWeekStats } from "../sleeper";
+import { fetchCurrentRegularWeek, fetchPlayers, fetchRoster, fetchSeasonTeams, fetchWeekStats } from "../sleeper";
 import { PLAY_SEASON } from "../season";
 import { scoreLineup, rankEntrants, type PlayerTotal } from "../scoring/score";
 
@@ -213,6 +213,20 @@ export async function ingestSeason(season: number, weeks: number[] = range(1, 18
   for (const week of weeks) {
     await ingestWeek(season, week);
   }
+}
+
+/**
+ * The RedZone auto-refresh: re-ingest just the week being played, then
+ * recompute the leaderboard. Returns the week ingested, or null (and does
+ * nothing) when Sleeper says it isn't the regular season. Earlier weeks'
+ * stat corrections are still picked up by the daily cron's full sweep.
+ */
+export async function refreshLiveWeek(season: number): Promise<number | null> {
+  const week = await fetchCurrentRegularWeek(season);
+  if (week === null) return null;
+  await ingestWeek(season, week);
+  await computeLeaderboard(season);
+  return week;
 }
 
 /**
