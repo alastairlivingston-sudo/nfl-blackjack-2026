@@ -6,7 +6,7 @@
  */
 import { and, asc, desc, eq, gt, gte, inArray, lt, or, sql } from "drizzle-orm";
 import { db } from "./client";
-import { entrants, feedback, generatorScores, leaderboard, loginAttempts, picks, players, playerWeekStats, playerSeasonTeam } from "./schema";
+import { entrants, feedback, generatorScores, jobLeases, leaderboard, loginAttempts, picks, players, playerWeekStats, playerSeasonTeam } from "./schema";
 import { currentSeason } from "../season";
 
 export interface ScoreboardRow {
@@ -153,6 +153,64 @@ export async function getPlayerPickers(playerId: string): Promise<PlayerPicker[]
     .from(picks)
     .innerJoin(entrants, eq(entrants.id, picks.entrantId))
     .where(eq(picks.playerId, playerId));
+}
+
+export interface PickedPlayer {
+  id: string;
+  fullName: string;
+  team: string | null;
+  position: string;
+  searchName: string;
+  seasonTotal: number;
+  pickers: PlayerPicker[];
+}
+
+/**
+ * Every player in at least one confirmed lineup, with who picked them — the
+ * data behind the /players "who had them?" search. Small enough to ship whole
+ * (≤ 5 picks × entrants) so the search filters client-side, like the entry
+ * typeahead. Most-picked first. Caller is responsible for respecting lock/reveal.
+ */
+export async function listPickedPlayers(): Promise<PickedPlayer[]> {
+  const totals = await seasonTotalsByPlayer();
+
+  const rows = await db()
+    .select({
+      id: players.id,
+      fullName: players.fullName,
+      team: players.team,
+      position: players.position,
+      searchName: players.searchName,
+      entrantId: entrants.id,
+      displayName: entrants.displayName,
+    })
+    .from(picks)
+    .innerJoin(players, eq(players.id, picks.playerId))
+    .innerJoin(entrants, eq(entrants.id, picks.entrantId))
+    .where(sql`${entrants.submittedAt} is not null`)
+    .orderBy(asc(entrants.displayName));
+
+  const byPlayer = new Map<string, PickedPlayer>();
+  for (const r of rows) {
+    let player = byPlayer.get(r.id);
+    if (!player) {
+      player = {
+        id: r.id,
+        fullName: r.fullName,
+        team: r.team,
+        position: r.position,
+        searchName: r.searchName,
+        seasonTotal: totals.get(r.id) ?? 0,
+        pickers: [],
+      };
+      byPlayer.set(r.id, player);
+    }
+    player.pickers.push({ entrantId: r.entrantId, displayName: r.displayName });
+  }
+
+  return [...byPlayer.values()].sort(
+    (a, b) => b.pickers.length - a.pickers.length || a.fullName.localeCompare(b.fullName),
+  );
 }
 
 export interface TeamPlayer {
@@ -377,6 +435,25 @@ export async function getStatsRefreshedAt(): Promise<Date | null> {
     .select({ at: sql<string | null>`max(${leaderboard.computedAt})` })
     .from(leaderboard);
   return row?.at ? new Date(row.at) : null;
+}
+
+/**
+ * Claims the named lease if nobody has in the last `ttlMs`, in one atomic
+ * upsert — the conditional `setWhere` means concurrent callers race on a
+ * single row and at most one gets it back from RETURNING. Returns whether this
+ * caller won. Used to throttle the RedZone auto-refresh (app/api/live-refresh).
+ */
+export async function claimJobLease(name: string, ttlMs: number, now: Date = new Date()): Promise<boolean> {
+  const rows = await db()
+    .insert(jobLeases)
+    .values({ name, claimedAt: now })
+    .onConflictDoUpdate({
+      target: jobLeases.name,
+      set: { claimedAt: now },
+      setWhere: lt(jobLeases.claimedAt, new Date(now.getTime() - ttlMs)),
+    })
+    .returning({ name: jobLeases.name });
+  return rows.length > 0;
 }
 
 export interface Entrant {

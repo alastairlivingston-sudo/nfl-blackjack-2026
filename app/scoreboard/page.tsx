@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Container, Card, CardTitle, CardSubtitle, StatePill, Badge, type LineupState } from "@/design";
 import { getEnteredEntrants, getScoreboard, getStatsRefreshedAt } from "@/lib/db/queries";
 import { isLocked } from "@/lib/lock";
+import { LiveRefresh } from "./LiveRefresh";
 
 /** Date + time in UK (Europe/London) time, e.g. "3 Jul 2026, 14:05". */
 function formatUkTime(d: Date): string {
@@ -17,8 +18,9 @@ export const metadata: Metadata = {
   title: "Scoreboard · Touchdown Blackjack",
 };
 
-// Leaderboard is precomputed by the daily cron; ISR keeps reads off the DB
-// for concurrent viewers (see PLAN.md "Scalability for ~1,000 users").
+// Leaderboard is precomputed by the daily cron (and every 10 minutes during
+// Sunday RedZone — see LiveRefresh); ISR keeps reads off the DB for concurrent
+// viewers (see PLAN.md "Scalability for ~1,000 users").
 export const revalidate = 60;
 
 export default async function ScoreboardPage() {
@@ -39,13 +41,21 @@ export default async function ScoreboardPage() {
         <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Scoreboard</h1>
         <p className="mt-2 text-muted">
           {locked
-            ? "Lineups are locked — totals update once a day."
+            ? "Lineups are locked — totals update once a day, and every 10 minutes during Sunday RedZone."
             : "Lineups stay private until Week 1 kickoff. Entrants below have submitted; totals and picks reveal at lock."}
         </p>
         {refreshedAt ? (
           <p className="mt-1 text-xs text-muted">
             Stats last refreshed: {formatUkTime(refreshedAt)} (UK time)
           </p>
+        ) : null}
+        {locked ? (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <LiveRefresh />
+            <Link href="/players" className="text-sm font-medium text-violet-300 hover:text-white">
+              Who picked who? Search players →
+            </Link>
+          </div>
         ) : null}
       </header>
 

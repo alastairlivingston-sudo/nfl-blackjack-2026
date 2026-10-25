@@ -85,6 +85,13 @@
       "when": 1783071360583,
       "tag": "0011_curious_cerise",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792951784163,
+      "tag": "0012_job_leases",
+      "breakpoints": true
     }
   ]
 }

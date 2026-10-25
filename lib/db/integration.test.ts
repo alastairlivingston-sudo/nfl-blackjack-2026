@@ -70,6 +70,8 @@ import {
   countFasterGeneratorScores,
   deleteGeneratorScore,
   listPickablePlayers,
+  listPickedPlayers,
+  claimJobLease,
 } from "./queries";
 import {
   computeLeaderboard,
@@ -77,6 +79,7 @@ import {
   ingestSeason,
   ingestHistoricalSeason,
   refreshRoster,
+  refreshLiveWeek,
 } from "../jobs/refresh";
 
 async function seedStat(
@@ -541,4 +544,70 @@ test("RS2: a partial Sleeper payload is refused rather than emptying the pool", 
     `select count(*)::int as n from players where active = true`,
   );
   assert.equal(activeAfter.rows[0].n, activeBefore.rows[0].n, "nothing was deactivated by the failed refresh");
+});
+
+test("PS1: player search lists who picked each player, confirmed lineups only, most-picked first", async () => {
+  const bo = await upsertEntrantProfile({ email: "bo@x.com", displayName: "Bo", tagConsent: false, donationConfirmed: false, ageConfirmed: true });
+  await replacePicks(bo.id, ["p1", "p2", "p3", "p4", "p5"]);
+  // A profile with picks but no confirmation (submitted_at null) must not show.
+  const ghost = await upsertEntrantProfile({ email: "ghost@x.com", displayName: "Ghost", tagConsent: false, donationConfirmed: false, ageConfirmed: true });
+  await client.exec(`insert into picks (id, entrant_id, player_id, slot) values ('ghost-pick', '${ghost.id}', 'p1', 1)`);
+
+  const picked = await listPickedPlayers();
+  const p1 = picked.find((p) => p.id === "p1");
+  const names = p1?.pickers.map((e) => e.displayName) ?? [];
+  assert.ok(names.includes("Al") && names.includes("Bo"), "both confirmed entrants listed");
+  assert.ok(!names.includes("Ghost"), "unconfirmed entrant excluded");
+  assert.equal(p1?.seasonTotal, 6, "carries the live-season TD total");
+  assert.equal(p1?.searchName, "alpha back");
+
+  for (let i = 1; i < picked.length; i++) {
+    assert.ok(picked[i - 1].pickers.length >= picked[i].pickers.length, "most-picked first");
+  }
+});
+
+test("LV1: job lease is claimed once per interval, then reclaimable", async () => {
+  const t0 = new Date("2026-10-04T17:00:00Z");
+  const ttl = 9 * 60 * 1000;
+  assert.equal(await claimJobLease("lv-test", ttl, t0), true, "first claim wins");
+  assert.equal(await claimJobLease("lv-test", ttl, new Date(t0.getTime() + 60_000)), false, "held within the interval");
+  assert.equal(await claimJobLease("lv-test", ttl, new Date(t0.getTime() + ttl + 1)), true, "reclaimable once it lapses");
+  assert.equal(await claimJobLease("other-job", ttl, t0), true, "leases are per name");
+});
+
+test("LV2: refreshLiveWeek ingests only Sleeper's current week and recomputes the board", async () => {
+  const realFetch = globalThis.fetch;
+  const requested: string[] = [];
+  const stub = (state: object) => {
+    globalThis.fetch = async (url: RequestInfo | URL) => {
+      const u = String(url);
+      requested.push(u);
+      if (u.endsWith("/state/nfl")) return new Response(JSON.stringify(state), { status: 200 });
+      if (u.endsWith("/stats/nfl/regular/2026/7")) return new Response(JSON.stringify({ p5: { rush_td: 2 } }), { status: 200 });
+      throw new Error(`unexpected fetch ${u}`);
+    };
+  };
+  try {
+    stub({ season: "2026", season_type: "regular", week: 7 });
+    assert.equal(await refreshLiveWeek(2026), 7);
+    assert.deepEqual(
+      requested.map((u) => u.replace("https://api.sleeper.app/v1", "")),
+      ["/state/nfl", "/stats/nfl/regular/2026/7"],
+      "one state lookup + one week, not the full 18-week sweep",
+    );
+    const res = await client.query<{ rush_td: number }>(
+      `select rush_td from player_week_stats where player_id='p5' and season=2026 and week=7`,
+    );
+    assert.equal(res.rows[0]?.rush_td, 2);
+    const bo = await getEntrantByEmail("bo@x.com");
+    const row = (await getScoreboard()).find((r) => r.entrantId === bo!.id);
+    assert.ok(row, "leaderboard recomputed to include the new stat");
+
+    requested.length = 0;
+    stub({ season: "2026", season_type: "post", week: 1 });
+    assert.equal(await refreshLiveWeek(2026), null, "no-op outside the regular season");
+    assert.equal(requested.length, 1, "no stats fetched");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });

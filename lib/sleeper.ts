@@ -40,6 +40,21 @@ export async function fetchWeekStats(season: number, week: number): Promise<Week
   }));
 }
 
+/**
+ * The NFL week Sleeper considers current, or null outside the regular season
+ * (preseason, playoffs, offseason) — the RedZone auto-refresh only re-ingests
+ * this one week, which keeps each run a couple of requests instead of the
+ * daily cron's full 18-week sweep.
+ */
+export async function fetchCurrentRegularWeek(season: number): Promise<number | null> {
+  const res = await fetch(`${SLEEPER_BASE}/state/nfl`, { signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) throw new Error(`Sleeper state request failed: ${res.status}`);
+  const state: { week?: number; season?: string; season_type?: string } = await res.json();
+  if (state.season_type !== "regular" || Number(state.season) !== season) return null;
+  const week = Number(state.week);
+  return Number.isInteger(week) && week >= 1 && week <= 18 ? week : null;
+}
+
 const SLEEPER_PLAYERS_URL = "https://api.sleeper.app/v1/players/nfl";
 const ELIGIBLE_POSITIONS = new Set(["QB", "RB", "WR", "TE"]);
 
