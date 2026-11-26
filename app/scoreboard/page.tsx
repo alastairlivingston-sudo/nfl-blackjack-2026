@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Container, Card, CardTitle, CardSubtitle, StatePill, Badge, type LineupState } from "@/design";
 import { getEnteredEntrants, getScoreboard, getStatsRefreshedAt } from "@/lib/db/queries";
 import { isLocked } from "@/lib/lock";
+import { BLACKJACK_TARGET } from "@/lib/scoring/score";
 import { LiveRefresh } from "./LiveRefresh";
 
 /** Date + time in UK (Europe/London) time, e.g. "3 Jul 2026, 14:05". */
@@ -98,8 +99,13 @@ function ScoreboardRow({
   locked: boolean;
   position: number;
 }) {
+  // Over 21 is out of contention whether or not the lineup is valid — grey it out
+  // (the query already sorts these to the bottom).
+  const busted = locked && row.totalTd > BLACKJACK_TARGET;
   const content = (
-    <div className="flex items-center justify-between gap-3 px-4 py-3">
+    <div
+      className={`flex items-center justify-between gap-3 px-4 py-3${busted ? " opacity-40 grayscale" : ""}`}
+    >
       <div className="flex min-w-0 items-center gap-3">
         <span className="w-6 shrink-0 text-right text-sm font-bold tabular-nums text-muted">
           {locked && row.rank ? row.rank : position}

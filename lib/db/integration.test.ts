@@ -280,6 +280,40 @@ test("ST5: totals sum all four non-passing TD categories, not just rush/rec", as
   assert.equal(entry?.state, "bust");
 });
 
+test("SB1: scoreboard sinks every over-21 lineup (valid or invalid) below the rest", async () => {
+  // Fixture rows written straight into the leaderboard so we can cover an
+  // invalid lineup that is also over 21 (state "invalid", not "bust").
+  const mk = async (email: string, name: string) =>
+    upsertEntrantProfile({ email, displayName: name, tagConsent: false, donationConfirmed: false, ageConfirmed: true });
+  const short = await mk("sb-short@x.com", "SbShort");
+  const invalidLow = await mk("sb-invlow@x.com", "SbInvalidLow");
+  const invalidBust = await mk("sb-invbust@x.com", "SbInvalidBust");
+  const bigBust = await mk("sb-bigbust@x.com", "SbBigBust");
+  await client.exec(`
+    insert into leaderboard (entrant_id, total_td, state, valid, rank) values
+      ('${short.id}', 18, 'short', true, null),
+      ('${invalidLow.id}', 12, 'invalid', false, null),
+      ('${invalidBust.id}', 23, 'invalid', false, null),
+      ('${bigBust.id}', 30, 'bust', true, null);
+  `);
+
+  const board = await getScoreboard();
+  const firstBust = board.findIndex((r) => r.totalTd > 21);
+  assert.ok(firstBust > 0, "there are non-bust rows ahead of the busts");
+  assert.ok(
+    board.slice(firstBust).every((r) => r.totalTd > 21),
+    "nothing at or under 21 appears after the first bust",
+  );
+  const bustTotals = board.slice(firstBust).map((r) => r.totalTd);
+  assert.deepEqual(bustTotals, [...bustTotals].sort((a, b) => a - b), "busts ordered closest to 21 first");
+  assert.ok(
+    board.findIndex((r) => r.entrantId === invalidBust.id) > board.findIndex((r) => r.entrantId === invalidLow.id),
+    "invalid-and-over-21 sinks below invalid-under-21",
+  );
+
+  await client.exec(`delete from leaderboard where entrant_id in ('${short.id}','${invalidLow.id}','${invalidBust.id}','${bigBust.id}');`);
+});
+
 test("ST6: ingestSeason's default week range covers exactly weeks 1-18, no more no less", async () => {
   const realFetch = globalThis.fetch;
   const requestedWeeks: number[] = [];

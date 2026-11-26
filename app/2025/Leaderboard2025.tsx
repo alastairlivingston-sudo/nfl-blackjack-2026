@@ -12,15 +12,21 @@ function stateFor(e: Entrant2025): LineupState {
 }
 
 const distanceTo21 = (e: Entrant2025) => Math.abs(e.total - 21);
+/** Over 21 is busted whether or not the lineup is valid. */
+const isBusted = (e: Entrant2025) => e.total > 21;
 
 export function Leaderboard2025({ entrants }: { entrants: Entrant2025[] }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
-  // Rank by how close to 21 (absolute distance), not by highest total. Ties go
+  // Busted lineups (over 21, valid or not) always sink to the bottom. Otherwise
+  // rank by how close to 21 (absolute distance), not by highest total. Ties go
   // to valid lineups first, then alphabetically for a stable order.
   const ranked = useMemo(
     () =>
       [...entrants].sort((a, b) => {
+        const ba = isBusted(a);
+        const bb = isBusted(b);
+        if (ba !== bb) return ba ? 1 : -1;
         const da = distanceTo21(a);
         const db = distanceTo21(b);
         if (da !== db) return da - db;
@@ -35,8 +41,9 @@ export function Leaderboard2025({ entrants }: { entrants: Entrant2025[] }) {
       {ranked.map((e, i) => {
         const open = openIndex === i;
         const dist = distanceTo21(e);
+        const busted = isBusted(e);
         return (
-          <div key={`${e.name}-${i}`}>
+          <div key={`${e.name}-${i}`} className={busted ? "opacity-40 grayscale" : undefined}>
             <button
               type="button"
               onClick={() => setOpenIndex(open ? null : i)}

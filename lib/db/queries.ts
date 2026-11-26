@@ -8,6 +8,7 @@ import { and, asc, desc, eq, gt, gte, inArray, lt, or, sql } from "drizzle-orm";
 import { db } from "./client";
 import { entrants, feedback, generatorScores, jobLeases, leaderboard, loginAttempts, picks, players, playerWeekStats, playerSeasonTeam } from "./schema";
 import { currentSeason } from "../season";
+import { BLACKJACK_TARGET } from "../scoring/score";
 
 export interface ScoreboardRow {
   entrantId: string;
@@ -54,9 +55,15 @@ export async function getScoreboard(): Promise<ScoreboardRow[]> {
     })
     .from(leaderboard)
     .innerJoin(entrants, eq(entrants.id, leaderboard.entrantId))
-    // Postgres puts NULLs last on ASC by default, so unranked entrants sort
-    // after ranked ones automatically; ties within that fall back to total.
-    .orderBy(asc(leaderboard.rank), desc(leaderboard.totalTd));
+    // Busted lineups (over 21 — valid or not) always sink to the bottom.
+    // Within each group, Postgres puts NULLs last on ASC by default so unranked
+    // entrants follow ranked ones; ties fall back to closeness to 21 (highest
+    // total for non-busts, lowest total for busts).
+    .orderBy(
+      sql`${leaderboard.totalTd} > ${BLACKJACK_TARGET}`,
+      asc(leaderboard.rank),
+      sql`case when ${leaderboard.totalTd} > ${BLACKJACK_TARGET} then ${leaderboard.totalTd} else -${leaderboard.totalTd} end`,
+    );
 
   return rows;
 }
